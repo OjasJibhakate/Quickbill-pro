@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,15 +12,24 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
-import { getProducts, checkout, getCustomers, saveCustomer, getOpenShift } from '@/database/repo';
+import {
+  getProducts,
+  checkout,
+  getCustomers,
+  saveCustomer,
+  getOpenShift,
+  getProductByBarcode,
+} from '@/database/repo';
 import { Product, CartItem, PaymentMethod, Customer } from '@/types';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { newId } from '@/utils/id';
 import { Button, Field } from '@/components/ui';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 
 type DiscountMode = 'amount' | 'percent';
 
@@ -69,6 +78,11 @@ export default function BillingScreen() {
   const [shiftId, setShiftId] = useState<string | null>(null);
   const [held, setHeld] = useState<HeldBill[]>([]);
   const [heldOpen, setHeldOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+
+  // When opened from the Home scanner with ?add=<productId>, add that product.
+  const params = useLocalSearchParams<{ add?: string }>();
+  const handledAdd = useRef<string | null>(null);
 
   const reload = useReload(async () => {
     const [prods, custs] = await Promise.all([getProducts(), getCustomers()]);
@@ -187,6 +201,25 @@ export default function BillingScreen() {
       }
       return [...prev, { product, quantity: 1 }];
     });
+  };
+
+  // Add a product passed in from the Home scanner (?add=<productId>).
+  useEffect(() => {
+    if (params.add && params.add !== handledAdd.current) {
+      handledAdd.current = String(params.add);
+      const p = products.find((x) => x.id === params.add);
+      if (p) addToCart(p);
+    }
+  }, [params.add, products]);
+
+  const onScanned = async (code: string) => {
+    setScanOpen(false);
+    const found = products.find((p) => p.barcode === code) ?? (await getProductByBarcode(code));
+    if (found) {
+      addToCart(found);
+    } else {
+      Alert.alert('Not found', `No product has the barcode ${code}. Add it in Products first.`);
+    }
   };
 
   const changeQty = (id: string, delta: number) => {
@@ -315,6 +348,9 @@ export default function BillingScreen() {
             onChangeText={setSearch}
             style={[styles.searchInput, { color: colors.text }]}
           />
+          <TouchableOpacity onPress={() => setScanOpen(true)} hitSlop={8}>
+            <Ionicons name="barcode-outline" size={24} color={colors.primary} />
+          </TouchableOpacity>
         </View>
 
         {held.length > 0 && (
@@ -708,6 +744,13 @@ export default function BillingScreen() {
           />
         </SafeAreaView>
       </Modal>
+
+      <BarcodeScanner
+        visible={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScanned={onScanned}
+        title="Scan a product barcode to add it to the bill"
+      />
     </SafeAreaView>
   );
 }

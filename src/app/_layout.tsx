@@ -35,6 +35,7 @@ function RootStack() {
         <Stack.Screen name="supplier/[id]" options={{ headerShown: true, title: 'Supplier' }} />
         <Stack.Screen name="stock-in" options={{ headerShown: true, title: 'Stock In' }} />
         <Stack.Screen name="expiring" options={{ headerShown: true, title: 'Expiring Stock' }} />
+        <Stack.Screen name="scan" options={{ headerShown: false }} />
       </Stack>
     </>
   );

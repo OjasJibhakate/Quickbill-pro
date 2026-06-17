@@ -20,6 +20,7 @@ import { getProducts, saveProduct, deleteProduct, getCategories } from '@/databa
 import { Product } from '@/types';
 import { formatCurrency, formatDateInput, validateExpiryDate } from '@/utils/format';
 import { Button, Field, EmptyState } from '@/components/ui';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 
 interface FormState {
   id?: string;
@@ -54,6 +55,7 @@ export default function ProductsScreen() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const reload = useReload(async () => {
     const [list, cats] = await Promise.all([getProducts(search), getCategories()]);
@@ -266,7 +268,22 @@ export default function ProductsScreen() {
                 </View>
               )}
 
-              <Field label="Barcode" value={form.barcode} onChangeText={(t) => set('barcode', t)} keyboardType="numeric" placeholder="Optional" />
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 14 }}>
+                <Field
+                  label="Barcode"
+                  containerStyle={{ flex: 1, marginBottom: 0 }}
+                  value={form.barcode}
+                  onChangeText={(t) => set('barcode', t)}
+                  keyboardType="numeric"
+                  placeholder="Optional"
+                />
+                <TouchableOpacity
+                  onPress={() => setScanOpen(true)}
+                  style={[styles.scanBtn, { backgroundColor: colors.primary }]}
+                >
+                  <Ionicons name="barcode-outline" size={24} color="#FFF" />
+                </TouchableOpacity>
+              </View>
 
               <Field
                 label="Max employee discount % (optional)"
@@ -297,6 +314,16 @@ export default function ProductsScreen() {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
+
+      <BarcodeScanner
+        visible={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScanned={(code) => {
+          set('barcode', code);
+          setScanOpen(false);
+        }}
+        title="Scan the product's barcode"
+      />
     </SafeAreaView>
   );
 }
@@ -321,6 +348,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   stockPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  scanBtn: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: -4, marginBottom: 14 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   fab: {

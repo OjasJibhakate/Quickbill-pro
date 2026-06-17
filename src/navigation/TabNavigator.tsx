@@ -1,5 +1,5 @@
-import { View, Text } from 'react-native';
-import { Tabs, Redirect } from 'expo-router';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Tabs, Redirect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
@@ -34,6 +34,7 @@ export default function TabNavigator() {
   const { user, isOwner } = useAuth();
   const { colors } = useTheme();
   const { displayName } = useStore();
+  const router = useRouter();
 
   // Guard: never render the tabs to an unauthenticated user.
   if (!user) return <Redirect href="/login" />;
@@ -60,6 +61,15 @@ export default function TabNavigator() {
           title: 'Home',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
+          ),
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/scan')}
+              hitSlop={8}
+              style={{ marginRight: 16 }}
+            >
+              <Ionicons name="scan-outline" size={24} color={colors.primary} />
+            </TouchableOpacity>
           ),
         }}
       />
