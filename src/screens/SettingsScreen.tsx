@@ -5,11 +5,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, ThemeMode } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import { Card, Button } from '@/components/ui';
+import { useStore } from '@/context/StoreContext';
+import { Card, Button, Field } from '@/components/ui';
 
 export default function SettingsScreen() {
   const { colors, themeMode, setThemeMode } = useTheme();
   const { user, logout } = useAuth();
+  const { storeName, setStoreName } = useStore();
   const router = useRouter();
 
   const handleLogout = () => {
@@ -51,6 +53,17 @@ export default function SettingsScreen() {
               {user?.role} · Max discount {user?.maxDiscount}%
             </Text>
           </View>
+        </Card>
+
+        <Text style={[styles.section, { color: colors.textMuted }]}>STORE</Text>
+        <Card>
+          <Field
+            label="Store name (shown in the header)"
+            value={storeName}
+            onChangeText={setStoreName}
+            placeholder="e.g. Sharma Kirana Store"
+            containerStyle={{ marginBottom: 0 }}
+          />
         </Card>
 
         <Text style={[styles.section, { color: colors.textMuted }]}>APPEARANCE</Text>

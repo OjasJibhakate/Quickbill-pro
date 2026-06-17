@@ -6,13 +6,14 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
+  StyleProp,
   ActivityIndicator,
   TextInput,
   TextInputProps,
 } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 
-export const Card: React.FC<{ children: React.ReactNode; style?: ViewStyle }> = ({
+export const Card: React.FC<{ children: React.ReactNode; style?: StyleProp<ViewStyle> }> = ({
   children,
   style,
 }) => {

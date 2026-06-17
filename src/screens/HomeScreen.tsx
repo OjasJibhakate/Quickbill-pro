@@ -117,24 +117,41 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        <Text style={[styles.section, { color: colors.text }]}>Recent Sales</Text>
+        <View style={styles.sectionRow}>
+          <Text style={[styles.section, { color: colors.text, marginTop: 0, marginBottom: 0 }]}>
+            Recent Sales
+          </Text>
+          {recent.length > 0 && (
+            <TouchableOpacity onPress={() => router.push('/sales')}>
+              <Text style={{ color: colors.primary, fontWeight: '700' }}>View all</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {recent.length === 0 ? (
           <Text style={{ color: colors.textMuted }}>No sales yet. Create your first bill!</Text>
         ) : (
           recent.map((s) => (
-            <Card key={s.id} style={styles.saleRow}>
-              <View>
-                <Text style={{ color: colors.text, fontWeight: '700' }}>
-                  {formatCurrency(s.finalAmount)}
-                </Text>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                  {s.itemCount} item(s) · {s.paymentMethod.toUpperCase()}
-                </Text>
-              </View>
-              <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                {formatDateTime(s.date)}
-              </Text>
-            </Card>
+            <TouchableOpacity
+              key={s.id}
+              onPress={() => router.push({ pathname: '/sale/[id]', params: { id: s.id } })}
+            >
+              <Card style={styles.saleRow}>
+                <View>
+                  <Text style={{ color: colors.text, fontWeight: '700' }}>
+                    {formatCurrency(s.finalAmount)}
+                  </Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    {s.itemCount} item(s) · {s.paymentMethod.toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    {formatDateTime(s.date)}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                </View>
+              </Card>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
@@ -152,6 +169,7 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '800' },
   statLabel: { fontSize: 13 },
   section: { fontSize: 17, fontWeight: '800', marginTop: 22, marginBottom: 12 },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 12 },
   actions: { flexDirection: 'row', gap: 12 },
   action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 12 },
   actionText: { color: '#FFF', fontWeight: '700', fontSize: 15 },

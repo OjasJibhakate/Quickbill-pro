@@ -3,24 +3,29 @@ import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
+import { useStore } from '@/context/StoreContext';
 
-/** Branded header title: app logo + name, shown on every tab. */
-function BrandHeader({ colors }: { colors: ThemeColors }) {
+/** Branded header title: "QBP" badge + the shop's name. */
+function BrandHeader({ colors, name }: { colors: ThemeColors; name: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       <View
         style={{
-          width: 30,
-          height: 30,
+          paddingHorizontal: 7,
+          height: 28,
           borderRadius: 8,
           backgroundColor: colors.primary,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Ionicons name="receipt-outline" size={18} color="#FFFFFF" />
+        <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 13, letterSpacing: 0.5 }}>
+          QBP
+        </Text>
       </View>
-      <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>QuickBill Pro</Text>
+      <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }} numberOfLines={1}>
+        {name}
+      </Text>
     </View>
   );
 }
@@ -28,6 +33,7 @@ function BrandHeader({ colors }: { colors: ThemeColors }) {
 export default function TabNavigator() {
   const { user, isOwner } = useAuth();
   const { colors } = useTheme();
+  const { displayName } = useStore();
 
   // Guard: never render the tabs to an unauthenticated user.
   if (!user) return <Redirect href="/login" />;
@@ -45,7 +51,7 @@ export default function TabNavigator() {
         headerTitleStyle: { color: colors.text },
         headerTintColor: colors.text,
         headerTitleAlign: 'left',
-        headerTitle: () => <BrandHeader colors={colors} />,
+        headerTitle: () => <BrandHeader colors={colors} name={displayName} />,
       }}
     >
       <Tabs.Screen

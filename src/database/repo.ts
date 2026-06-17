@@ -147,6 +147,9 @@ export interface CheckoutInput {
   paymentMethod: PaymentMethod;
   userId: string;
   customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerAddress?: string | null;
 }
 
 /**
@@ -166,8 +169,9 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      `INSERT INTO sales (id, customerId, userId, shiftId, totalAmount, discountAmount, finalAmount, paymentMethod, date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sales
+         (id, customerId, userId, shiftId, totalAmount, discountAmount, finalAmount, paymentMethod, date, customerName, customerPhone, customerAddress)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleId,
         input.customerId ?? null,
@@ -178,6 +182,9 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
         final,
         input.paymentMethod,
         now,
+        input.customerName?.trim() || null,
+        input.customerPhone?.trim() || null,
+        input.customerAddress?.trim() || null,
       ]
     );
 
@@ -217,6 +224,141 @@ export const getRecentSales = async (limit = 10): Promise<RecentSale[]> => {
        FROM sales s ORDER BY s.date DESC LIMIT ?`,
     [limit]
   );
+};
+
+/** Full sales history (most recent first). */
+export const getSales = async (limit = 100): Promise<RecentSale[]> => getRecentSales(limit);
+
+export interface SaleItemDetail {
+  id: string;
+  productId: string;
+  name: string | null; // null if the product was deleted
+  unit: string | null;
+  quantity: number;
+  priceAtSale: number;
+  currentStock: number | null;
+}
+
+export interface SaleDetail {
+  sale: Sale;
+  items: SaleItemDetail[];
+}
+
+export const getSaleDetail = async (saleId: string): Promise<SaleDetail | null> => {
+  const db = await getDB();
+  const sale = await db.getFirstAsync<Sale>('SELECT * FROM sales WHERE id = ?', [saleId]);
+  if (!sale) return null;
+  const items = await db.getAllAsync<SaleItemDetail>(
+    `SELECT si.id, si.productId, si.quantity, si.priceAtSale,
+            p.name AS name, p.unit AS unit, p.stock AS currentStock
+       FROM sale_items si
+       LEFT JOIN products p ON p.id = si.productId
+       WHERE si.saleId = ?`,
+    [saleId]
+  );
+  return { sale, items };
+};
+
+export interface EditedLine {
+  productId: string;
+  quantity: number;
+  priceAtSale: number;
+}
+
+/**
+ * Replaces a sale's line items (for returns / quantity changes). Stock is
+ * restored from the old lines then re-deducted for the new lines, totals are
+ * recomputed, and any credit balance is adjusted. Lines with quantity 0 are
+ * dropped (a full return of that item).
+ */
+export const updateSale = async (
+  saleId: string,
+  lines: EditedLine[],
+  userId: string
+): Promise<void> => {
+  const db = await getDB();
+  const sale = await db.getFirstAsync<Sale>('SELECT * FROM sales WHERE id = ?', [saleId]);
+  if (!sale) throw new Error('Sale not found');
+
+  const kept = lines.filter((l) => l.quantity > 0);
+  const newTotal = kept.reduce((s, l) => s + l.priceAtSale * l.quantity, 0);
+  const newDiscount = Math.min(sale.discountAmount, newTotal);
+  const newFinal = newTotal - newDiscount;
+
+  await db.withTransactionAsync(async () => {
+    // Restore stock from the existing lines, then clear them.
+    const oldItems = await db.getAllAsync<{ productId: string; quantity: number }>(
+      'SELECT productId, quantity FROM sale_items WHERE saleId = ?',
+      [saleId]
+    );
+    for (const it of oldItems) {
+      await db.runAsync('UPDATE products SET stock = stock + ? WHERE id = ?', [
+        it.quantity,
+        it.productId,
+      ]);
+    }
+    await db.runAsync('DELETE FROM sale_items WHERE saleId = ?', [saleId]);
+
+    // Insert the edited lines and deduct stock again.
+    for (const l of kept) {
+      await db.runAsync(
+        `INSERT INTO sale_items (id, saleId, productId, quantity, priceAtSale)
+           VALUES (?, ?, ?, ?, ?)`,
+        [newId('si'), saleId, l.productId, l.quantity, l.priceAtSale]
+      );
+      await db.runAsync('UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?', [
+        l.quantity,
+        l.productId,
+      ]);
+    }
+
+    await db.runAsync(
+      'UPDATE sales SET totalAmount = ?, discountAmount = ?, finalAmount = ? WHERE id = ?',
+      [newTotal, newDiscount, newFinal, saleId]
+    );
+
+    // Keep a credit customer's outstanding balance in sync with the change.
+    if (sale.paymentMethod === 'credit' && sale.customerId) {
+      const delta = newFinal - sale.finalAmount;
+      await db.runAsync('UPDATE customers SET currentDue = currentDue + ? WHERE id = ?', [
+        delta,
+        sale.customerId,
+      ]);
+    }
+  });
+
+  await logActivity(userId, 'EDIT_SALE', `Edited sale ${saleId}: total now ${newFinal}`);
+};
+
+/** Deletes a sale entirely (full return): restores stock and clears any due. */
+export const deleteSale = async (saleId: string, userId: string): Promise<void> => {
+  const db = await getDB();
+  const sale = await db.getFirstAsync<Sale>('SELECT * FROM sales WHERE id = ?', [saleId]);
+  if (!sale) return;
+
+  await db.withTransactionAsync(async () => {
+    const oldItems = await db.getAllAsync<{ productId: string; quantity: number }>(
+      'SELECT productId, quantity FROM sale_items WHERE saleId = ?',
+      [saleId]
+    );
+    for (const it of oldItems) {
+      await db.runAsync('UPDATE products SET stock = stock + ? WHERE id = ?', [
+        it.quantity,
+        it.productId,
+      ]);
+    }
+    await db.runAsync('DELETE FROM sale_items WHERE saleId = ?', [saleId]);
+
+    if (sale.paymentMethod === 'credit' && sale.customerId) {
+      await db.runAsync('UPDATE customers SET currentDue = currentDue - ? WHERE id = ?', [
+        sale.finalAmount,
+        sale.customerId,
+      ]);
+    }
+    await db.runAsync('DELETE FROM sales WHERE id = ?', [saleId]);
+  });
+
+  await logActivity(userId, 'DELETE_SALE', `Deleted sale ${saleId} (${sale.finalAmount})`);
 };
 
 /* -------------------------------------------------------------------------- */

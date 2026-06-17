@@ -39,6 +39,9 @@ export interface Sale {
   finalAmount: number;
   paymentMethod: PaymentMethod;
   date: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerAddress?: string | null;
 }
 
 export interface SaleItem {

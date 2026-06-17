@@ -36,6 +36,10 @@ export default function BillingScreen() {
   const [success, setSuccess] = useState<{ amount: number; method: PaymentMethod } | null>(
     null
   );
+  const [showCustomer, setShowCustomer] = useState(false);
+  const [custName, setCustName] = useState('');
+  const [custPhone, setCustPhone] = useState('');
+  const [custAddress, setCustAddress] = useState('');
 
   const reload = useReload(async () => {
     setProducts(await getProducts());
@@ -105,6 +109,10 @@ export default function BillingScreen() {
   const clearCart = () => {
     setCart([]);
     setDiscount('');
+    setShowCustomer(false);
+    setCustName('');
+    setCustPhone('');
+    setCustAddress('');
   };
 
   const confirmPayment = async (method: PaymentMethod) => {
@@ -127,6 +135,9 @@ export default function BillingScreen() {
         discountAmount: discountValue,
         paymentMethod: method,
         userId: user.id,
+        customerName: custName,
+        customerPhone: custPhone,
+        customerAddress: custAddress,
       });
       setPayOpen(false);
       clearCart();
@@ -274,6 +285,49 @@ export default function BillingScreen() {
                 {formatCurrency(total)}
               </Text>
             </View>
+            <TouchableOpacity
+              onPress={() => setShowCustomer((v) => !v)}
+              style={styles.customerToggle}
+            >
+              <Ionicons
+                name={showCustomer ? 'chevron-down' : 'chevron-forward'}
+                size={16}
+                color={colors.primary}
+              />
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                {custName || custPhone
+                  ? `Customer: ${custName || custPhone}`
+                  : 'Add customer details (optional)'}
+              </Text>
+            </TouchableOpacity>
+
+            {showCustomer && (
+              <View style={{ gap: 8, marginTop: 8 }}>
+                <TextInput
+                  placeholder="Name"
+                  placeholderTextColor={colors.textMuted}
+                  value={custName}
+                  onChangeText={setCustName}
+                  style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
+                />
+                <TextInput
+                  placeholder="Phone (for WhatsApp invoice)"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="phone-pad"
+                  value={custPhone}
+                  onChangeText={setCustPhone}
+                  style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
+                />
+                <TextInput
+                  placeholder="Address"
+                  placeholderTextColor={colors.textMuted}
+                  value={custAddress}
+                  onChangeText={setCustAddress}
+                  style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
+                />
+              </View>
+            )}
+
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
               <Button title="Clear" variant="outline" onPress={clearCart} style={{ flex: 1 }} />
               <Button title="Charge" variant="success" onPress={() => setPayOpen(true)} style={{ flex: 2 }} />
@@ -383,6 +437,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     minWidth: 80,
     textAlign: 'right',
+  },
+  customerToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  custInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
   },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#0008' },
   modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },

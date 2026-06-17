@@ -62,6 +62,9 @@ export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       finalAmount REAL NOT NULL,
       paymentMethod TEXT DEFAULT 'cash',
       date TEXT NOT NULL,
+      customerName TEXT,
+      customerPhone TEXT,
+      customerAddress TEXT,
       FOREIGN KEY(customerId) REFERENCES customers(id),
       FOREIGN KEY(userId) REFERENCES users(id),
       FOREIGN KEY(shiftId) REFERENCES shifts(id)
@@ -99,5 +102,25 @@ export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       VALUES ('emp-1', 'Cashier', '0000', 'employee', 10);
   `);
 
+  await runMigrations(db);
   return db;
+};
+
+/**
+ * Adds columns introduced after the first release to databases that already
+ * exist on a device. CREATE TABLE IF NOT EXISTS won't alter an existing table,
+ * so we add missing columns here. Safe to run on every launch.
+ */
+const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
+  const addColumnIfMissing = async (table: string, column: string, type: string) => {
+    const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+    if (!cols.some((c) => c.name === column)) {
+      await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    }
+  };
+
+  // Optional walk-in customer details captured at billing time.
+  await addColumnIfMissing('sales', 'customerName', 'TEXT');
+  await addColumnIfMissing('sales', 'customerPhone', 'TEXT');
+  await addColumnIfMissing('sales', 'customerAddress', 'TEXT');
 };
