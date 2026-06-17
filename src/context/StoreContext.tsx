@@ -1,37 +1,60 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = 'qbp_store_name';
+const PROFILE_KEY = 'qbp_store_profile';
+const LEGACY_NAME_KEY = 'qbp_store_name';
+
+export interface StoreProfile {
+  name: string;
+  address: string;
+  phone: string;
+  website: string; // optional; used for the invoice QR code
+}
+
+const EMPTY: StoreProfile = { name: '', address: '', phone: '', website: '' };
 
 interface StoreContextType {
-  storeName: string;
-  /** What to show in the header — store name, or a sensible default. */
+  store: StoreProfile;
+  /** Store name, or a sensible default — used in the header. */
   displayName: string;
   setStoreName: (name: string) => void;
+  updateStore: (patch: Partial<StoreProfile>) => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [storeName, setStoreNameState] = useState('');
+  const [store, setStore] = useState<StoreProfile>(EMPTY);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((v) => {
-        if (v) setStoreNameState(v);
-      })
-      .catch(() => {});
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(PROFILE_KEY);
+        if (raw) {
+          setStore({ ...EMPTY, ...JSON.parse(raw) });
+          return;
+        }
+        // Migrate the old name-only setting, if present.
+        const legacyName = await AsyncStorage.getItem(LEGACY_NAME_KEY);
+        if (legacyName) setStore({ ...EMPTY, name: legacyName });
+      } catch {
+        /* ignore */
+      }
+    })();
   }, []);
 
-  const setStoreName = (name: string) => {
-    setStoreNameState(name);
-    AsyncStorage.setItem(STORAGE_KEY, name).catch(() => {});
+  const persist = (next: StoreProfile) => {
+    setStore(next);
+    AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(next)).catch(() => {});
   };
 
-  const displayName = storeName.trim() || 'QuickBill Pro';
+  const updateStore = (patch: Partial<StoreProfile>) => persist({ ...store, ...patch });
+  const setStoreName = (name: string) => updateStore({ name });
+
+  const displayName = store.name.trim() || 'QuickBill Pro';
 
   return (
-    <StoreContext.Provider value={{ storeName, displayName, setStoreName }}>
+    <StoreContext.Provider value={{ store, displayName, setStoreName, updateStore }}>
       {children}
     </StoreContext.Provider>
   );

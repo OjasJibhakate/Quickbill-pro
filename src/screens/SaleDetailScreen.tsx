@@ -219,6 +219,13 @@ export default function SaleDetailScreen() {
           style={{ marginTop: 16 }}
         />
 
+        <Button
+          title="Share Invoice"
+          variant="outline"
+          onPress={() => router.push({ pathname: '/invoice/[id]', params: { id: sale.id } })}
+          style={{ marginTop: 10 }}
+        />
+
         {isOwner && (
           <Button
             title="Delete Sale (full return)"

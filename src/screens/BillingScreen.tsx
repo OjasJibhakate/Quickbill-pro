@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -50,6 +50,7 @@ const HELD_KEY = 'qbp_held_bills';
 export default function BillingScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
@@ -58,9 +59,11 @@ export default function BillingScreen() {
   const [discountMode, setDiscountMode] = useState<DiscountMode>('amount');
   const [payOpen, setPayOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [success, setSuccess] = useState<{ amount: number; method: PaymentMethod } | null>(
-    null
-  );
+  const [success, setSuccess] = useState<{
+    amount: number;
+    method: PaymentMethod;
+    saleId: string;
+  } | null>(null);
   const [showCustomer, setShowCustomer] = useState(false);
   const [custName, setCustName] = useState('');
   const [custPhone, setCustPhone] = useState('');
@@ -313,7 +316,7 @@ export default function BillingScreen() {
     setBusy(true);
     try {
       const charged = total;
-      await checkout({
+      const saleId = await checkout({
         items: cart,
         discountAmount: discountValue,
         paymentMethod: method,
@@ -327,7 +330,7 @@ export default function BillingScreen() {
       setPayOpen(false);
       clearCart();
       reload();
-      setSuccess({ amount: charged, method });
+      setSuccess({ amount: charged, method, saleId });
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Could not complete the sale.');
@@ -617,7 +620,21 @@ export default function BillingScreen() {
             <Text style={{ color: colors.textMuted, marginBottom: 20 }}>
               Paid via {success?.method.toUpperCase()}
             </Text>
-            <Button title="Done" variant="success" onPress={() => setSuccess(null)} style={{ alignSelf: 'stretch' }} />
+            <Button
+              title="Share Invoice"
+              onPress={() => {
+                const sid = success?.saleId;
+                setSuccess(null);
+                if (sid) router.push({ pathname: '/invoice/[id]', params: { id: sid } });
+              }}
+              style={{ alignSelf: 'stretch' }}
+            />
+            <Button
+              title="Done"
+              variant="outline"
+              onPress={() => setSuccess(null)}
+              style={{ alignSelf: 'stretch', marginTop: 10 }}
+            />
           </View>
         </View>
       </Modal>
