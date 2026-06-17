@@ -10,7 +10,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#2563EB"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.quickbill.pro"
@@ -27,7 +29,8 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-camera"
+      "expo-camera",
+      "expo-sharing"
     ],
     "scheme": "quickbillpro",
     "experiments": {
