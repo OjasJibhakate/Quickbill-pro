@@ -1,6 +1,5 @@
 import { getDB } from './index';
 import { newId } from '@/utils/id';
-import { todayKey } from '@/utils/format';
 import {
   Product,
   Sale,
@@ -226,12 +225,11 @@ export const getRecentSales = async (limit = 10): Promise<RecentSale[]> => {
 
 export const getHomeStats = async (): Promise<HomeStats> => {
   const db = await getDB();
-  const day = `${todayKey()}%`;
 
+  // Compare in local time so "today" matches the shop's clock, not UTC.
   const sales = await db.getFirstAsync<{ total: number; orders: number }>(
     `SELECT COALESCE(SUM(finalAmount), 0) AS total, COUNT(*) AS orders
-       FROM sales WHERE date LIKE ?`,
-    [day]
+       FROM sales WHERE date(date, 'localtime') = date('now', 'localtime')`
   );
   const low = await db.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) AS count FROM products WHERE stock <= ?',
@@ -254,13 +252,13 @@ export interface DailySales {
   total: number;
 }
 
-/** Sales totals for the last `days` calendar days (oldest first). */
+/** Sales totals for the last `days` calendar days (oldest first), in local time. */
 export const getSalesTrend = async (days = 7): Promise<DailySales[]> => {
   const db = await getDB();
   const rows = await db.getAllAsync<DailySales>(
-    `SELECT substr(date, 1, 10) AS day, COALESCE(SUM(finalAmount), 0) AS total
+    `SELECT date(date, 'localtime') AS day, COALESCE(SUM(finalAmount), 0) AS total
        FROM sales
-       WHERE date >= date('now', ?)
+       WHERE date(date, 'localtime') >= date('now', 'localtime', ?)
        GROUP BY day ORDER BY day ASC`,
     [`-${days - 1} days`]
   );
@@ -271,7 +269,9 @@ export const getSalesTrend = async (days = 7): Promise<DailySales[]> => {
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate()
+    ).padStart(2, '0')}`;
     out.push({ day: key, total: map.get(key) ?? 0 });
   }
   return out;
@@ -320,4 +320,127 @@ export const getSummary = async (sinceDays: number): Promise<SalesSummary> => {
     orders: sales?.orders ?? 0,
     itemsSold: items?.qty ?? 0,
   };
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Owner analytics: P&L, charts, dead stock                                  */
+/* -------------------------------------------------------------------------- */
+
+export interface ProfitSummary {
+  revenue: number; // net of discounts
+  cogs: number; // cost of goods sold (buy price x qty)
+  profit: number;
+  marginPct: number;
+  orders: number;
+  itemsSold: number;
+}
+
+/** Profit & Loss for the last `days` days. COGS uses each product's buy price. */
+export const getProfitSummary = async (days: number): Promise<ProfitSummary> => {
+  const db = await getDB();
+  const since = `-${days - 1} days`;
+
+  const rev = await db.getFirstAsync<{ revenue: number; orders: number }>(
+    `SELECT COALESCE(SUM(finalAmount), 0) AS revenue, COUNT(*) AS orders
+       FROM sales WHERE date(date, 'localtime') >= date('now', 'localtime', ?)`,
+    [since]
+  );
+  const cost = await db.getFirstAsync<{ cogs: number; items: number }>(
+    `SELECT COALESCE(SUM(si.quantity * p.buyPrice), 0) AS cogs,
+            COALESCE(SUM(si.quantity), 0) AS items
+       FROM sale_items si
+       JOIN sales s ON s.id = si.saleId
+       JOIN products p ON p.id = si.productId
+       WHERE date(s.date, 'localtime') >= date('now', 'localtime', ?)`,
+    [since]
+  );
+
+  const revenue = rev?.revenue ?? 0;
+  const cogs = cost?.cogs ?? 0;
+  const profit = revenue - cogs;
+  return {
+    revenue,
+    cogs,
+    profit,
+    marginPct: revenue > 0 ? (profit / revenue) * 100 : 0,
+    orders: rev?.orders ?? 0,
+    itemsSold: cost?.items ?? 0,
+  };
+};
+
+export interface HourlySales {
+  hour: number; // 0..23 (local)
+  total: number;
+}
+
+/** Revenue grouped by hour-of-day (local time) over the last `days` days. */
+export const getSalesByHour = async (days: number): Promise<HourlySales[]> => {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ hour: string; total: number }>(
+    `SELECT strftime('%H', date, 'localtime') AS hour,
+            COALESCE(SUM(finalAmount), 0) AS total
+       FROM sales
+       WHERE date(date, 'localtime') >= date('now', 'localtime', ?)
+       GROUP BY hour ORDER BY hour`,
+    [`-${days - 1} days`]
+  );
+  const map = new Map(rows.map((r) => [parseInt(r.hour, 10), r.total]));
+  // Only return hours a shop is realistically open to keep the chart readable.
+  const out: HourlySales[] = [];
+  for (let h = 6; h <= 23; h++) out.push({ hour: h, total: map.get(h) ?? 0 });
+  return out;
+};
+
+/** Best-selling products by revenue over the last `days` days. */
+export const getBestSellers = async (days: number, limit = 5): Promise<TopProduct[]> => {
+  const db = await getDB();
+  return db.getAllAsync<TopProduct>(
+    `SELECT p.name AS name,
+            SUM(si.quantity) AS qty,
+            SUM(si.quantity * si.priceAtSale) AS revenue
+       FROM sale_items si
+       JOIN sales s ON s.id = si.saleId
+       JOIN products p ON p.id = si.productId
+       WHERE date(s.date, 'localtime') >= date('now', 'localtime', ?)
+       GROUP BY si.productId ORDER BY revenue DESC LIMIT ?`,
+    [`-${days - 1} days`, limit]
+  );
+};
+
+export interface TopCustomer {
+  name: string;
+  total: number;
+  orders: number;
+}
+
+/** Highest-spending customers over the last `days` days (named sales only). */
+export const getTopCustomers = async (days: number, limit = 5): Promise<TopCustomer[]> => {
+  const db = await getDB();
+  return db.getAllAsync<TopCustomer>(
+    `SELECT c.name AS name,
+            COALESCE(SUM(s.finalAmount), 0) AS total,
+            COUNT(*) AS orders
+       FROM sales s
+       JOIN customers c ON c.id = s.customerId
+       WHERE s.customerId IS NOT NULL
+         AND date(s.date, 'localtime') >= date('now', 'localtime', ?)
+       GROUP BY s.customerId ORDER BY total DESC LIMIT ?`,
+    [`-${days - 1} days`, limit]
+  );
+};
+
+/** In-stock products with no sales in the last `days` days (dead stock). */
+export const getDeadStock = async (days: number): Promise<Product[]> => {
+  const db = await getDB();
+  return db.getAllAsync<Product>(
+    `SELECT * FROM products
+       WHERE stock > 0
+         AND id NOT IN (
+           SELECT si.productId FROM sale_items si
+           JOIN sales s ON s.id = si.saleId
+           WHERE date(s.date, 'localtime') >= date('now', 'localtime', ?)
+         )
+       ORDER BY (buyPrice * stock) DESC`,
+    [`-${days - 1} days`]
+  );
 };
