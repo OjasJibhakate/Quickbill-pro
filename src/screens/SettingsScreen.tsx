@@ -70,12 +70,24 @@ export default function SettingsScreen() {
           <>
             <Text style={[styles.section, { color: colors.textMuted }]}>STAFF</Text>
             <TouchableOpacity onPress={() => router.push('/users')}>
-              <Card style={styles.linkRow}>
+              <Card style={[styles.linkRow, { marginBottom: 10 }]}>
                 <Ionicons name="people-outline" size={20} color={colors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.text, fontWeight: '600' }}>Manage staff & PINs</Text>
                   <Text style={{ color: colors.textMuted, fontSize: 12 }}>
                     Change PINs, add employees, set discount limits
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </Card>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/activity')}>
+              <Card style={styles.linkRow}>
+                <Ionicons name="receipt-outline" size={20} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: '600' }}>Activity log</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    Who sold, edited, deleted, or opened shifts
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />

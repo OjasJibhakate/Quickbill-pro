@@ -10,6 +10,8 @@ import {
   CreditTransaction,
   User,
   Role,
+  Shift,
+  ActivityLog,
 } from '@/types';
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -309,6 +311,7 @@ export interface CheckoutInput {
   customerName?: string | null;
   customerPhone?: string | null;
   customerAddress?: string | null;
+  shiftId?: string | null;
 }
 
 /**
@@ -335,7 +338,7 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
         saleId,
         input.customerId ?? null,
         input.userId,
-        null,
+        input.shiftId ?? null,
         total,
         discount,
         final,
@@ -748,5 +751,122 @@ export const getDeadStock = async (days: number): Promise<Product[]> => {
          )
        ORDER BY (buyPrice * stock) DESC`,
     [`-${days - 1} days`]
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Shifts (Z-report) & activity log                                          */
+/* -------------------------------------------------------------------------- */
+
+export const getOpenShift = async (userId: string): Promise<Shift | null> => {
+  const db = await getDB();
+  return db.getFirstAsync<Shift>(
+    "SELECT * FROM shifts WHERE userId = ? AND status = 'open' ORDER BY startTime DESC LIMIT 1",
+    [userId]
+  );
+};
+
+export const openShift = async (userId: string, openingBalance: number): Promise<string> => {
+  const db = await getDB();
+  const existing = await getOpenShift(userId);
+  if (existing) return existing.id; // already open
+  const id = newId('shift');
+  await db.runAsync(
+    "INSERT INTO shifts (id, userId, startTime, openingBalance, status) VALUES (?, ?, ?, ?, 'open')",
+    [id, userId, new Date().toISOString(), openingBalance]
+  );
+  await logActivity(userId, 'SHIFT_OPEN', `Opened shift (float ${openingBalance})`);
+  return id;
+};
+
+export const closeShift = async (
+  shiftId: string,
+  closingBalance: number,
+  userId: string
+): Promise<void> => {
+  const db = await getDB();
+  await db.runAsync(
+    "UPDATE shifts SET endTime = ?, closingBalance = ?, status = 'closed' WHERE id = ?",
+    [new Date().toISOString(), closingBalance, shiftId]
+  );
+  await logActivity(userId, 'SHIFT_CLOSE', `Closed shift (counted ${closingBalance})`);
+};
+
+export interface ShiftRow extends Shift {
+  userName: string | null;
+}
+
+export const getShifts = async (limit = 30): Promise<ShiftRow[]> => {
+  const db = await getDB();
+  return db.getAllAsync<ShiftRow>(
+    `SELECT sh.*, u.name AS userName FROM shifts sh
+       LEFT JOIN users u ON u.id = sh.userId
+       ORDER BY sh.startTime DESC LIMIT ?`,
+    [limit]
+  );
+};
+
+export interface ShiftReport {
+  shift: ShiftRow;
+  totals: { total: number; orders: number; itemsSold: number };
+  byMethod: Record<PaymentMethod, number>;
+  cashSales: number;
+  expectedCash: number; // opening float + cash sales
+  variance: number | null; // counted - expected (null while open)
+}
+
+export const getShiftReport = async (shiftId: string): Promise<ShiftReport | null> => {
+  const db = await getDB();
+  const shift = await db.getFirstAsync<ShiftRow>(
+    'SELECT sh.*, u.name AS userName FROM shifts sh LEFT JOIN users u ON u.id = sh.userId WHERE sh.id = ?',
+    [shiftId]
+  );
+  if (!shift) return null;
+
+  const totalsRow = await db.getFirstAsync<{ total: number; orders: number }>(
+    'SELECT COALESCE(SUM(finalAmount), 0) AS total, COUNT(*) AS orders FROM sales WHERE shiftId = ?',
+    [shiftId]
+  );
+  const itemsRow = await db.getFirstAsync<{ qty: number }>(
+    `SELECT COALESCE(SUM(si.quantity), 0) AS qty FROM sale_items si
+       JOIN sales s ON s.id = si.saleId WHERE s.shiftId = ?`,
+    [shiftId]
+  );
+  const methodRows = await db.getAllAsync<{ paymentMethod: PaymentMethod; total: number }>(
+    'SELECT paymentMethod, COALESCE(SUM(finalAmount), 0) AS total FROM sales WHERE shiftId = ? GROUP BY paymentMethod',
+    [shiftId]
+  );
+
+  const byMethod: Record<PaymentMethod, number> = { cash: 0, upi: 0, card: 0, credit: 0 };
+  for (const r of methodRows) byMethod[r.paymentMethod] = r.total;
+
+  const cashSales = byMethod.cash;
+  const expectedCash = shift.openingBalance + cashSales;
+  const variance =
+    shift.status === 'closed' && shift.closingBalance != null
+      ? shift.closingBalance - expectedCash
+      : null;
+
+  return {
+    shift,
+    totals: { total: totalsRow?.total ?? 0, orders: totalsRow?.orders ?? 0, itemsSold: itemsRow?.qty ?? 0 },
+    byMethod,
+    cashSales,
+    expectedCash,
+    variance,
+  };
+};
+
+export interface ActivityRow extends ActivityLog {
+  userName: string | null;
+}
+
+export const getActivityLogs = async (limit = 100): Promise<ActivityRow[]> => {
+  const db = await getDB();
+  return db.getAllAsync<ActivityRow>(
+    `SELECT a.*, u.name AS userName FROM activity_logs a
+       LEFT JOIN users u ON u.id = a.userId
+       ORDER BY a.timestamp DESC LIMIT ?`,
+    [limit]
   );
 };

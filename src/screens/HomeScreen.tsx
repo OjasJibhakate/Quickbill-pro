@@ -11,6 +11,7 @@ import {
   getRecentSales,
   getLowStockProducts,
   getTotalOutstanding,
+  getOpenShift,
   RecentSale,
 } from '@/database/repo';
 import { HomeStats, Product } from '@/types';
@@ -31,18 +32,21 @@ export default function HomeScreen() {
   const [recent, setRecent] = useState<RecentSale[]>([]);
   const [lowStock, setLowStock] = useState<Product[]>([]);
   const [outstanding, setOutstanding] = useState(0);
+  const [shiftOpen, setShiftOpen] = useState(false);
 
   useReload(async () => {
-    const [s, r, l, due] = await Promise.all([
+    const [s, r, l, due, shift] = await Promise.all([
       getHomeStats(),
       getRecentSales(6),
       getLowStockProducts(),
       getTotalOutstanding(),
+      user ? getOpenShift(user.id) : Promise.resolve(null),
     ]);
     setStats(s);
     setRecent(r);
     setLowStock(l);
     setOutstanding(due);
+    setShiftOpen(!!shift);
   });
 
   const StatCard = ({
@@ -133,6 +137,35 @@ export default function HomeScreen() {
           </Card>
         </TouchableOpacity>
 
+        <TouchableOpacity onPress={() => router.push('/shift')}>
+          <Card style={[styles.udhaarCard, { marginTop: 12 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <View style={[styles.udhaarIcon, { backgroundColor: colors.primary + '22' }]}>
+                <Ionicons name="time-outline" size={22} color={colors.primary} />
+              </View>
+              <View>
+                <Text style={{ color: colors.text, fontWeight: '700' }}>Shift & Day Close</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Cash drawer & Z-report</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View
+                style={[
+                  styles.shiftPill,
+                  { backgroundColor: (shiftOpen ? colors.success : colors.textMuted) + '22' },
+                ]}
+              >
+                <Text
+                  style={{ color: shiftOpen ? colors.success : colors.textMuted, fontWeight: '700', fontSize: 12 }}
+                >
+                  {shiftOpen ? 'Open' : 'Closed'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </View>
+          </Card>
+        </TouchableOpacity>
+
         {lowStock.length > 0 && (
           <Card style={{ marginTop: 18, backgroundColor: colors.warning + '18', borderColor: colors.warning }}>
             <View style={styles.alertHeader}>
@@ -210,6 +243,7 @@ const styles = StyleSheet.create({
   actionText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
   udhaarCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
   udhaarIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  shiftPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   alertHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   alertTitle: { fontWeight: '700' },
   lowRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },

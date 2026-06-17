@@ -28,6 +28,9 @@ function RootStack() {
         <Stack.Screen name="customers" options={{ headerShown: true, title: 'Customers & Udhaar' }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true, title: 'Customer' }} />
         <Stack.Screen name="users" options={{ headerShown: true, title: 'Staff & PINs' }} />
+        <Stack.Screen name="shift" options={{ headerShown: true, title: 'Shift' }} />
+        <Stack.Screen name="shift/[id]" options={{ headerShown: true, title: 'Z-Report' }} />
+        <Stack.Screen name="activity" options={{ headerShown: true, title: 'Activity Log' }} />
       </Stack>
     </>
   );

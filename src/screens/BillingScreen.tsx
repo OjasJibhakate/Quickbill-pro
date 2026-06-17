@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,32 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
-import { getProducts, checkout, getCustomers, saveCustomer } from '@/database/repo';
+import { getProducts, checkout, getCustomers, saveCustomer, getOpenShift } from '@/database/repo';
 import { Product, CartItem, PaymentMethod, Customer } from '@/types';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatDateTime } from '@/utils/format';
+import { newId } from '@/utils/id';
 import { Button, Field } from '@/components/ui';
 
 type DiscountMode = 'amount' | 'percent';
+
+interface HeldBill {
+  id: string;
+  items: CartItem[];
+  discount: string;
+  discountMode: DiscountMode;
+  customer: Customer | null;
+  custName: string;
+  custPhone: string;
+  custAddress: string;
+  heldAt: string;
+}
+
+const HELD_KEY = 'qbp_held_bills';
 
 export default function BillingScreen() {
   const { colors } = useTheme();
@@ -49,11 +65,75 @@ export default function BillingScreen() {
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
 
+  // Open shift (sales attach to it) + held bills.
+  const [shiftId, setShiftId] = useState<string | null>(null);
+  const [held, setHeld] = useState<HeldBill[]>([]);
+  const [heldOpen, setHeldOpen] = useState(false);
+
   const reload = useReload(async () => {
     const [prods, custs] = await Promise.all([getProducts(), getCustomers()]);
     setProducts(prods);
     setCustomers(custs);
+    if (user) setShiftId((await getOpenShift(user.id))?.id ?? null);
   });
+
+  // Restore held bills once, then persist whenever they change.
+  useEffect(() => {
+    AsyncStorage.getItem(HELD_KEY)
+      .then((raw) => {
+        if (raw) setHeld(JSON.parse(raw));
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    AsyncStorage.setItem(HELD_KEY, JSON.stringify(held)).catch(() => {});
+  }, [held]);
+
+  const holdBill = () => {
+    if (cart.length === 0) return;
+    const bill: HeldBill = {
+      id: newId('held'),
+      items: cart,
+      discount,
+      discountMode,
+      customer,
+      custName,
+      custPhone,
+      custAddress,
+      heldAt: new Date().toISOString(),
+    };
+    setHeld((prev) => [bill, ...prev]);
+    clearCart();
+  };
+
+  const applyHeld = (bill: HeldBill) => {
+    setCart(bill.items);
+    setDiscount(bill.discount);
+    setDiscountMode(bill.discountMode);
+    setCustomer(bill.customer);
+    setCustName(bill.custName);
+    setCustPhone(bill.custPhone);
+    setCustAddress(bill.custAddress);
+    setHeld((prev) => prev.filter((b) => b.id !== bill.id));
+    setHeldOpen(false);
+  };
+
+  const resumeBill = (bill: HeldBill) => {
+    if (cart.length > 0) {
+      Alert.alert('Cart not empty', 'Hold the current cart and open this one?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Hold & Open',
+          onPress: () => {
+            holdBill();
+            applyHeld(bill);
+          },
+        },
+      ]);
+    } else {
+      applyHeld(bill);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -209,6 +289,7 @@ export default function BillingScreen() {
         customerName: customer?.name ?? custName,
         customerPhone: customer?.phone ?? custPhone,
         customerAddress: custAddress,
+        shiftId,
       });
       setPayOpen(false);
       clearCart();
@@ -235,6 +316,19 @@ export default function BillingScreen() {
             style={[styles.searchInput, { color: colors.text }]}
           />
         </View>
+
+        {held.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setHeldOpen(true)}
+            style={[styles.heldBanner, { backgroundColor: colors.warning + '22', borderColor: colors.warning }]}
+          >
+            <Ionicons name="pause-circle-outline" size={18} color={colors.warning} />
+            <Text style={{ color: colors.warning, fontWeight: '700', flex: 1 }}>
+              {held.length} bill{held.length > 1 ? 's' : ''} on hold
+            </Text>
+            <Text style={{ color: colors.warning, fontWeight: '700' }}>Resume ›</Text>
+          </TouchableOpacity>
+        )}
 
         <FlatList
           data={filtered}
@@ -426,6 +520,7 @@ export default function BillingScreen() {
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
               <Button title="Clear" variant="outline" onPress={clearCart} style={{ flex: 1 }} />
+              <Button title="Hold" variant="outline" onPress={holdBill} style={{ flex: 1 }} />
               <Button title="Charge" variant="success" onPress={() => setPayOpen(true)} style={{ flex: 2 }} />
             </View>
           </View>
@@ -564,6 +659,55 @@ export default function BillingScreen() {
           />
         </SafeAreaView>
       </Modal>
+
+      {/* Held bills */}
+      <Modal visible={heldOpen} animationType="slide" onRequestClose={() => setHeldOpen(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={[styles.pickerHeader, { borderColor: colors.border }]}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>Held Bills</Text>
+            <TouchableOpacity onPress={() => setHeldOpen(false)}>
+              <Ionicons name="close" size={26} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={held}
+            keyExtractor={(b) => b.id}
+            contentContainerStyle={{ padding: 16 }}
+            ListEmptyComponent={
+              <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 20 }}>
+                No bills on hold.
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const billTotal = item.items.reduce((s, it) => s + it.product.sellPrice * it.quantity, 0);
+              const count = item.items.reduce((s, it) => s + it.quantity, 0);
+              return (
+                <TouchableOpacity
+                  onPress={() => resumeBill(item)}
+                  style={[styles.pickerRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>
+                      {formatCurrency(billTotal)} · {count} item{count > 1 ? 's' : ''}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                      {item.customer?.name || item.custName || 'Walk-in'} · held {formatDateTime(item.heldAt)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setHeld((prev) => prev.filter((b) => b.id !== item.id))}
+                    hitSlop={8}
+                    style={{ marginRight: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                  </TouchableOpacity>
+                  <Ionicons name="arrow-forward-circle" size={24} color={colors.primary} />
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -607,6 +751,16 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     minWidth: 80,
     textAlign: 'right',
+  },
+  heldBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
   },
   customerToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   custInput: {
