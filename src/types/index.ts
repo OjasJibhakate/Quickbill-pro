@@ -32,6 +32,49 @@ export interface Customer {
   discountPct: number;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  phone?: string | null;
+  contactPerson?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  currentPayable: number;
+  createdAt?: string | null;
+}
+
+export interface Purchase {
+  id: string;
+  supplierId?: string | null;
+  userId: string;
+  date: string;
+  totalAmount: number;
+  paid: number; // 1 = paid, 0 = on credit (adds to supplier payable)
+  note?: string | null;
+}
+
+export interface PurchaseItem {
+  id: string;
+  purchaseId: string;
+  productId: string;
+  quantity: number;
+  buyPrice: number;
+  batchNo?: string | null;
+  expiryDate?: string | null;
+}
+
+export interface ProductBatch {
+  id: string;
+  productId: string;
+  purchaseId?: string | null;
+  supplierId?: string | null;
+  batchNo?: string | null;
+  expiryDate?: string | null;
+  quantityRemaining: number;
+  buyPrice: number;
+  receivedAt?: string | null;
+}
+
 export type CreditTxnType = 'charge' | 'payment';
 
 export interface CreditTransaction {

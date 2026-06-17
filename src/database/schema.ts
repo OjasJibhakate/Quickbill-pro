@@ -102,10 +102,60 @@ export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       timestamp TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS suppliers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      phone TEXT,
+      contactPerson TEXT,
+      address TEXT,
+      notes TEXT,
+      currentPayable REAL DEFAULT 0,
+      createdAt TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS purchases (
+      id TEXT PRIMARY KEY,
+      supplierId TEXT,
+      userId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      totalAmount REAL NOT NULL DEFAULT 0,
+      paid INTEGER NOT NULL DEFAULT 1,
+      note TEXT,
+      FOREIGN KEY(supplierId) REFERENCES suppliers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_items (
+      id TEXT PRIMARY KEY,
+      purchaseId TEXT NOT NULL,
+      productId TEXT NOT NULL,
+      quantity INTEGER NOT NULL,
+      buyPrice REAL NOT NULL DEFAULT 0,
+      batchNo TEXT,
+      expiryDate TEXT,
+      FOREIGN KEY(purchaseId) REFERENCES purchases(id),
+      FOREIGN KEY(productId) REFERENCES products(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS product_batches (
+      id TEXT PRIMARY KEY,
+      productId TEXT NOT NULL,
+      purchaseId TEXT,
+      supplierId TEXT,
+      batchNo TEXT,
+      expiryDate TEXT,
+      quantityRemaining INTEGER NOT NULL DEFAULT 0,
+      buyPrice REAL DEFAULT 0,
+      receivedAt TEXT,
+      FOREIGN KEY(productId) REFERENCES products(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
     CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
     CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date);
     CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(saleId);
+    CREATE INDEX IF NOT EXISTS idx_batches_product ON product_batches(productId);
+    CREATE INDEX IF NOT EXISTS idx_batches_expiry ON product_batches(expiryDate);
+    CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase ON purchase_items(purchaseId);
 
     -- Default Owner Account (PIN: 1234)
     INSERT OR IGNORE INTO users (id, name, pin, role, maxDiscount)

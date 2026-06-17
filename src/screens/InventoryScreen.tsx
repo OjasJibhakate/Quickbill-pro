@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useReload } from '@/hooks/useReload';
@@ -21,6 +22,7 @@ type FilterMode = 'all' | 'low';
 
 export default function InventoryScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState<FilterMode>('all');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -70,6 +72,23 @@ export default function InventoryScreen() {
               {lowCount} item(s)
             </Text>
           </Card>
+        </View>
+
+        <View style={styles.quickLinks}>
+          {[
+            { label: 'Stock In', icon: 'download-outline' as const, href: '/stock-in' as const },
+            { label: 'Suppliers', icon: 'business-outline' as const, href: '/suppliers' as const },
+            { label: 'Expiring', icon: 'alert-circle-outline' as const, href: '/expiring' as const },
+          ].map((q) => (
+            <TouchableOpacity
+              key={q.label}
+              onPress={() => router.push(q.href)}
+              style={[styles.quickLink, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Ionicons name={q.icon} size={20} color={colors.primary} />
+              <Text style={{ color: colors.text, fontWeight: '600', fontSize: 12 }}>{q.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <View style={styles.tabs}>
@@ -151,6 +170,15 @@ export default function InventoryScreen() {
 }
 
 const styles = StyleSheet.create({
+  quickLinks: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  quickLink: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   tabs: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
   adjustRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },

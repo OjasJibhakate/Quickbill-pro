@@ -31,6 +31,10 @@ function RootStack() {
         <Stack.Screen name="shift" options={{ headerShown: true, title: 'Shift' }} />
         <Stack.Screen name="shift/[id]" options={{ headerShown: true, title: 'Z-Report' }} />
         <Stack.Screen name="activity" options={{ headerShown: true, title: 'Activity Log' }} />
+        <Stack.Screen name="suppliers" options={{ headerShown: true, title: 'Suppliers' }} />
+        <Stack.Screen name="supplier/[id]" options={{ headerShown: true, title: 'Supplier' }} />
+        <Stack.Screen name="stock-in" options={{ headerShown: true, title: 'Stock In' }} />
+        <Stack.Screen name="expiring" options={{ headerShown: true, title: 'Expiring Stock' }} />
       </Stack>
     </>
   );

@@ -12,6 +12,9 @@ import {
   Role,
   Shift,
   ActivityLog,
+  Supplier,
+  ProductBatch,
+  Purchase,
 } from '@/types';
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -302,6 +305,28 @@ export const getCustomerSales = async (customerId: string): Promise<RecentSale[]
 /*  Sales / checkout                                                          */
 /* -------------------------------------------------------------------------- */
 
+type DB = Awaited<ReturnType<typeof getDB>>;
+
+/** Reduces tracked batches for a product, earliest-expiry-first. Best-effort. */
+const deductBatchesFEFO = async (db: DB, productId: string, qty: number): Promise<void> => {
+  let remaining = qty;
+  const batches = await db.getAllAsync<{ id: string; quantityRemaining: number }>(
+    `SELECT id, quantityRemaining FROM product_batches
+       WHERE productId = ? AND quantityRemaining > 0
+       ORDER BY (expiryDate IS NULL), expiryDate ASC, receivedAt ASC`,
+    [productId]
+  );
+  for (const b of batches) {
+    if (remaining <= 0) break;
+    const take = Math.min(b.quantityRemaining, remaining);
+    await db.runAsync(
+      'UPDATE product_batches SET quantityRemaining = quantityRemaining - ? WHERE id = ?',
+      [take, b.id]
+    );
+    remaining -= take;
+  }
+};
+
 export interface CheckoutInput {
   items: CartItem[];
   discountAmount: number;
@@ -360,6 +385,8 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
         it.quantity,
         it.product.id,
       ]);
+      // Best-effort: draw down tracked batches first-expiry-first (FEFO).
+      await deductBatchesFEFO(db, it.product.id, it.quantity);
     }
 
     // On-credit sales add to the customer's outstanding due and ledger.
@@ -868,5 +895,206 @@ export const getActivityLogs = async (limit = 100): Promise<ActivityRow[]> => {
        LEFT JOIN users u ON u.id = a.userId
        ORDER BY a.timestamp DESC LIMIT ?`,
     [limit]
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Suppliers, purchases (stock-in) & batches                                 */
+/* -------------------------------------------------------------------------- */
+
+export const getSuppliers = async (search = ''): Promise<Supplier[]> => {
+  const db = await getDB();
+  if (search.trim()) {
+    const q = `%${search.trim()}%`;
+    return db.getAllAsync<Supplier>(
+      'SELECT * FROM suppliers WHERE name LIKE ? OR phone LIKE ? ORDER BY name COLLATE NOCASE',
+      [q, q]
+    );
+  }
+  return db.getAllAsync<Supplier>('SELECT * FROM suppliers ORDER BY name COLLATE NOCASE');
+};
+
+export const getSupplierById = async (id: string): Promise<Supplier | null> => {
+  const db = await getDB();
+  return db.getFirstAsync<Supplier>('SELECT * FROM suppliers WHERE id = ?', [id]);
+};
+
+export const saveSupplier = async (
+  s: Pick<Supplier, 'name' | 'phone' | 'contactPerson' | 'address' | 'notes'> & { id?: string }
+): Promise<string> => {
+  const db = await getDB();
+  if (s.id) {
+    await db.runAsync(
+      'UPDATE suppliers SET name = ?, phone = ?, contactPerson = ?, address = ?, notes = ? WHERE id = ?',
+      [s.name, s.phone ?? null, s.contactPerson ?? null, s.address ?? null, s.notes ?? null, s.id]
+    );
+    return s.id;
+  }
+  const id = newId('sup');
+  await db.runAsync(
+    `INSERT INTO suppliers (id, name, phone, contactPerson, address, notes, currentPayable, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+    [id, s.name, s.phone ?? null, s.contactPerson ?? null, s.address ?? null, s.notes ?? null, new Date().toISOString()]
+  );
+  return id;
+};
+
+export const deleteSupplier = async (id: string): Promise<void> => {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM suppliers WHERE id = ?', [id]);
+};
+
+export const getTotalPayable = async (): Promise<number> => {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ total: number }>(
+    'SELECT COALESCE(SUM(currentPayable), 0) AS total FROM suppliers'
+  );
+  return row?.total ?? 0;
+};
+
+export const recordSupplierPayment = async (
+  supplierId: string,
+  amount: number,
+  userId: string
+): Promise<void> => {
+  if (amount <= 0) return;
+  const db = await getDB();
+  await db.runAsync('UPDATE suppliers SET currentPayable = MAX(0, currentPayable - ?) WHERE id = ?', [
+    amount,
+    supplierId,
+  ]);
+  await logActivity(userId, 'SUPPLIER_PAYMENT', `Paid supplier ${supplierId} ${amount}`);
+};
+
+export interface PurchaseLine {
+  productId: string;
+  quantity: number;
+  buyPrice: number;
+  batchNo?: string | null;
+  expiryDate?: string | null;
+}
+
+export interface CreatePurchaseInput {
+  supplierId: string | null;
+  userId: string;
+  paid: boolean;
+  note?: string;
+  lines: PurchaseLine[];
+}
+
+/**
+ * Records a stock-in: raises stock, refreshes each product's buy price (and
+ * expiry), writes batch rows, and adds to the supplier's payable when unpaid.
+ */
+export const createPurchase = async (input: CreatePurchaseInput): Promise<string> => {
+  const db = await getDB();
+  const lines = input.lines.filter((l) => l.quantity > 0);
+  const total = lines.reduce((s, l) => s + l.buyPrice * l.quantity, 0);
+  const purchaseId = newId('pur');
+  const now = new Date().toISOString();
+
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `INSERT INTO purchases (id, supplierId, userId, date, totalAmount, paid, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [purchaseId, input.supplierId ?? null, input.userId, now, total, input.paid ? 1 : 0, input.note ?? null]
+    );
+
+    for (const l of lines) {
+      await db.runAsync(
+        `INSERT INTO purchase_items (id, purchaseId, productId, quantity, buyPrice, batchNo, expiryDate)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [newId('pi'), purchaseId, l.productId, l.quantity, l.buyPrice, l.batchNo ?? null, l.expiryDate ?? null]
+      );
+      await db.runAsync('UPDATE products SET stock = stock + ?, buyPrice = ? WHERE id = ?', [
+        l.quantity,
+        l.buyPrice,
+        l.productId,
+      ]);
+      if (l.expiryDate) {
+        await db.runAsync('UPDATE products SET expiryDate = ? WHERE id = ?', [l.expiryDate, l.productId]);
+      }
+      await db.runAsync(
+        `INSERT INTO product_batches
+           (id, productId, purchaseId, supplierId, batchNo, expiryDate, quantityRemaining, buyPrice, receivedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newId('batch'),
+          l.productId,
+          purchaseId,
+          input.supplierId ?? null,
+          l.batchNo ?? null,
+          l.expiryDate ?? null,
+          l.quantity,
+          l.buyPrice,
+          now,
+        ]
+      );
+    }
+
+    if (!input.paid && input.supplierId) {
+      await db.runAsync('UPDATE suppliers SET currentPayable = currentPayable + ? WHERE id = ?', [
+        total,
+        input.supplierId,
+      ]);
+    }
+  });
+
+  await logActivity(input.userId, 'PURCHASE', `Stock-in ${purchaseId} for ${total}`);
+  return purchaseId;
+};
+
+export interface PurchaseRow extends Purchase {
+  itemCount: number;
+  supplierName: string | null;
+}
+
+export const getPurchasesBySupplier = async (supplierId: string): Promise<PurchaseRow[]> => {
+  const db = await getDB();
+  return db.getAllAsync<PurchaseRow>(
+    `SELECT p.*, s.name AS supplierName,
+            (SELECT COALESCE(SUM(quantity), 0) FROM purchase_items WHERE purchaseId = p.id) AS itemCount
+       FROM purchases p LEFT JOIN suppliers s ON s.id = p.supplierId
+       WHERE p.supplierId = ? ORDER BY p.date DESC`,
+    [supplierId]
+  );
+};
+
+export const getRecentPurchases = async (limit = 50): Promise<PurchaseRow[]> => {
+  const db = await getDB();
+  return db.getAllAsync<PurchaseRow>(
+    `SELECT p.*, s.name AS supplierName,
+            (SELECT COALESCE(SUM(quantity), 0) FROM purchase_items WHERE purchaseId = p.id) AS itemCount
+       FROM purchases p LEFT JOIN suppliers s ON s.id = p.supplierId
+       ORDER BY p.date DESC LIMIT ?`,
+    [limit]
+  );
+};
+
+export const getBatchesByProduct = async (productId: string): Promise<ProductBatch[]> => {
+  const db = await getDB();
+  return db.getAllAsync<ProductBatch>(
+    `SELECT * FROM product_batches WHERE productId = ? AND quantityRemaining > 0
+       ORDER BY (expiryDate IS NULL), expiryDate ASC`,
+    [productId]
+  );
+};
+
+export interface ExpiringBatch extends ProductBatch {
+  productName: string | null;
+  unit: string | null;
+}
+
+/** In-stock batches expiring within `days` days (includes already expired). */
+export const getExpiringBatches = async (days = 30): Promise<ExpiringBatch[]> => {
+  const db = await getDB();
+  return db.getAllAsync<ExpiringBatch>(
+    `SELECT b.*, p.name AS productName, p.unit AS unit
+       FROM product_batches b JOIN products p ON p.id = b.productId
+       WHERE b.quantityRemaining > 0
+         AND b.expiryDate IS NOT NULL
+         AND date(b.expiryDate) <= date('now', 'localtime', ?)
+       ORDER BY b.expiryDate ASC`,
+    [`+${days} days`]
   );
 };
