@@ -20,6 +20,8 @@ import { Product, CartItem, PaymentMethod } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { Button } from '@/components/ui';
 
+type DiscountMode = 'amount' | 'percent';
+
 export default function BillingScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
@@ -28,8 +30,12 @@ export default function BillingScreen() {
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discount, setDiscount] = useState('');
+  const [discountMode, setDiscountMode] = useState<DiscountMode>('amount');
   const [payOpen, setPayOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState<{ amount: number; method: PaymentMethod } | null>(
+    null
+  );
 
   const reload = useReload(async () => {
     setProducts(await getProducts());
@@ -47,9 +53,17 @@ export default function BillingScreen() {
     () => cart.reduce((s, it) => s + it.product.sellPrice * it.quantity, 0),
     [cart]
   );
-  const discountValue = Math.min(Math.max(parseFloat(discount) || 0, 0), subtotal);
-  const total = subtotal - discountValue;
 
+  // Resolve whatever the cashier typed (₹ or %) into an absolute rupee value.
+  const discountValue = useMemo(() => {
+    const raw = parseFloat(discount) || 0;
+    if (raw <= 0) return 0;
+    const val = discountMode === 'percent' ? (subtotal * raw) / 100 : raw;
+    return Math.min(Math.max(val, 0), subtotal);
+  }, [discount, discountMode, subtotal]);
+
+  const discountPct = subtotal > 0 ? (discountValue / subtotal) * 100 : 0;
+  const total = subtotal - discountValue;
   const maxDiscountAllowed = subtotal * ((user?.maxDiscount ?? 0) / 100);
 
   const addToCart = (product: Product) => {
@@ -107,6 +121,7 @@ export default function BillingScreen() {
     }
     setBusy(true);
     try {
+      const charged = total;
       await checkout({
         items: cart,
         discountAmount: discountValue,
@@ -116,7 +131,7 @@ export default function BillingScreen() {
       setPayOpen(false);
       clearCart();
       reload();
-      Alert.alert('Sale complete', `${formatCurrency(total)} collected via ${method.toUpperCase()}.`);
+      setSuccess({ amount: charged, method });
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Could not complete the sale.');
@@ -209,17 +224,50 @@ export default function BillingScreen() {
               <Text style={{ color: colors.textMuted }}>Subtotal</Text>
               <Text style={{ color: colors.text }}>{formatCurrency(subtotal)}</Text>
             </View>
+
             <View style={styles.sumRow}>
-              <Text style={{ color: colors.textMuted }}>Discount (₹)</Text>
-              <TextInput
-                value={discount}
-                onChangeText={setDiscount}
-                keyboardType="numeric"
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                style={[styles.discountInput, { color: colors.text, borderColor: colors.border }]}
-              />
+              <Text style={{ color: colors.textMuted }}>Discount</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={[styles.toggle, { borderColor: colors.border }]}>
+                  {(['amount', 'percent'] as DiscountMode[]).map((m) => (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setDiscountMode(m)}
+                      style={[
+                        styles.toggleBtn,
+                        discountMode === m && { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: discountMode === m ? '#FFF' : colors.textMuted,
+                          fontWeight: '700',
+                        }}
+                      >
+                        {m === 'amount' ? '₹' : '%'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  value={discount}
+                  onChangeText={setDiscount}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.discountInput, { color: colors.text, borderColor: colors.border }]}
+                />
+              </View>
             </View>
+
+            {discountValue > 0 && (
+              <Text style={{ color: colors.textMuted, fontSize: 12, textAlign: 'right' }}>
+                {discountMode === 'amount'
+                  ? `≈ ${discountPct.toFixed(1)}% off`
+                  : `= ${formatCurrency(discountValue)} off`}
+              </Text>
+            )}
+
             <View style={[styles.sumRow, { marginTop: 4 }]}>
               <Text style={{ color: colors.text, fontWeight: '800', fontSize: 18 }}>Total</Text>
               <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 18 }}>
@@ -234,6 +282,7 @@ export default function BillingScreen() {
         )}
       </View>
 
+      {/* Payment method picker */}
       <Modal visible={payOpen} transparent animationType="slide" onRequestClose={() => setPayOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
@@ -272,6 +321,25 @@ export default function BillingScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Themed success confirmation (replaces the native "charged" alert) */}
+      <Modal visible={!!success} transparent animationType="fade" onRequestClose={() => setSuccess(null)}>
+        <View style={styles.centerBackdrop}>
+          <View style={[styles.successCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.successIcon, { backgroundColor: colors.success + '22' }]}>
+              <Ionicons name="checkmark-circle" size={56} color={colors.success} />
+            </View>
+            <Text style={[styles.successTitle, { color: colors.text }]}>Payment Received</Text>
+            <Text style={[styles.successAmount, { color: colors.success }]}>
+              {formatCurrency(success?.amount ?? 0)}
+            </Text>
+            <Text style={{ color: colors.textMuted, marginBottom: 20 }}>
+              Paid via {success?.method.toUpperCase()}
+            </Text>
+            <Button title="Done" variant="success" onPress={() => setSuccess(null)} style={{ alignSelf: 'stretch' }} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -306,12 +374,14 @@ const styles = StyleSheet.create({
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   summary: { borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 6 },
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  toggle: { flexDirection: 'row', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  toggleBtn: { paddingHorizontal: 12, paddingVertical: 4, minWidth: 34, alignItems: 'center' },
   discountInput: {
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    minWidth: 90,
+    minWidth: 80,
     textAlign: 'right',
   },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#0008' },
@@ -327,4 +397,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
   },
+  centerBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0009',
+    padding: 32,
+  },
+  successCard: {
+    width: '100%',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+  },
+  successIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  successTitle: { fontSize: 18, fontWeight: '700' },
+  successAmount: { fontSize: 32, fontWeight: '800', marginVertical: 4 },
 });

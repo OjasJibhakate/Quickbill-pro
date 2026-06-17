@@ -101,6 +101,17 @@ export const deleteProduct = async (id: string): Promise<void> => {
   await db.runAsync('DELETE FROM products WHERE id = ?', [id]);
 };
 
+/** Distinct, non-empty category names already in use (for suggestions). */
+export const getCategories = async (): Promise<string[]> => {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ category: string }>(
+    `SELECT DISTINCT category FROM products
+       WHERE category IS NOT NULL AND TRIM(category) <> ''
+       ORDER BY category COLLATE NOCASE`
+  );
+  return rows.map((r) => r.category);
+};
+
 /** Add (positive) or remove (negative) stock for a single product. */
 export const adjustStock = async (id: string, delta: number): Promise<void> => {
   const db = await getDB();

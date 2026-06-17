@@ -16,9 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useReload } from '@/hooks/useReload';
-import { getProducts, saveProduct, deleteProduct } from '@/database/repo';
+import { getProducts, saveProduct, deleteProduct, getCategories } from '@/database/repo';
 import { Product } from '@/types';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatDateInput, validateExpiryDate } from '@/utils/format';
 import { Button, Field, EmptyState } from '@/components/ui';
 
 interface FormState {
@@ -47,13 +47,16 @@ const emptyForm: FormState = {
 export default function ProductsScreen() {
   const { colors } = useTheme();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
 
   const reload = useReload(async () => {
-    setProducts(await getProducts(search));
+    const [list, cats] = await Promise.all([getProducts(search), getCategories()]);
+    setProducts(list);
+    setCategories(cats);
   });
 
   // Re-query when the search text changes.
@@ -84,9 +87,31 @@ export default function ProductsScreen() {
   const set = (key: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  // Auto-mask the expiry date, but let backspace remove an auto-inserted dash.
+  const onExpiryChange = (text: string) => {
+    if (text.length < form.expiryDate.length) {
+      set('expiryDate', text.endsWith('-') ? text.slice(0, -1) : text);
+    } else {
+      set('expiryDate', formatDateInput(text));
+    }
+  };
+
+  const expiryError = validateExpiryDate(form.expiryDate);
+
+  // Existing categories that match what's typed (helps avoid duplicates).
+  const categorySuggestions = categories.filter((c) => {
+    const typed = form.category.trim().toLowerCase();
+    if (c.toLowerCase() === typed) return false;
+    return typed === '' || c.toLowerCase().includes(typed);
+  });
+
   const save = async () => {
     if (!form.name.trim()) {
       Alert.alert('Missing name', 'Please enter a product name.');
+      return;
+    }
+    if (expiryError) {
+      Alert.alert('Invalid expiry date', expiryError);
       return;
     }
     setSaving(true);
@@ -211,7 +236,7 @@ export default function ProductsScreen() {
                 <Ionicons name="close" size={26} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
+            <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
               <Field label="Name *" value={form.name} onChangeText={(t) => set('name', t)} placeholder="e.g. Parle-G Biscuit" />
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <Field label="Buy Price" containerStyle={{ flex: 1 }} value={form.buyPrice} onChangeText={(t) => set('buyPrice', t)} keyboardType="numeric" placeholder="0" />
@@ -221,9 +246,40 @@ export default function ProductsScreen() {
                 <Field label="Stock" containerStyle={{ flex: 1 }} value={form.stock} onChangeText={(t) => set('stock', t)} keyboardType="numeric" placeholder="0" />
                 <Field label="Unit" containerStyle={{ flex: 1 }} value={form.unit} onChangeText={(t) => set('unit', t)} placeholder="pcs / kg / L" />
               </View>
+
               <Field label="Category" value={form.category} onChangeText={(t) => set('category', t)} placeholder="e.g. Snacks" />
+              {categorySuggestions.length > 0 && (
+                <View style={styles.chipRow}>
+                  {categorySuggestions.map((c) => (
+                    <TouchableOpacity
+                      key={c}
+                      onPress={() => set('category', c)}
+                      style={[styles.chip, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '55' }]}
+                    >
+                      <Text style={{ color: colors.primary, fontWeight: '600', fontSize: 13 }}>{c}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
               <Field label="Barcode" value={form.barcode} onChangeText={(t) => set('barcode', t)} keyboardType="numeric" placeholder="Optional" />
-              <Field label="Expiry Date" value={form.expiryDate} onChangeText={(t) => set('expiryDate', t)} placeholder="YYYY-MM-DD (optional)" />
+
+              <Field
+                label="Expiry Date"
+                value={form.expiryDate}
+                onChangeText={onExpiryChange}
+                keyboardType="numeric"
+                maxLength={10}
+                placeholder="YYYY-MM-DD (optional)"
+                style={expiryError ? { borderColor: colors.danger } : undefined}
+                containerStyle={{ marginBottom: expiryError ? 4 : 14 }}
+              />
+              {expiryError && (
+                <Text style={{ color: colors.danger, fontSize: 13, marginBottom: 14 }}>
+                  {expiryError}
+                </Text>
+              )}
+
               <Button title={form.id ? 'Save Changes' : 'Add Product'} onPress={save} loading={saving} style={{ marginTop: 8 }} />
             </ScrollView>
           </KeyboardAvoidingView>
@@ -253,6 +309,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   stockPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: -4, marginBottom: 14 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   fab: {
     position: 'absolute',
     right: 20,

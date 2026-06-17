@@ -1,7 +1,29 @@
+import { View, Text } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
+import { useTheme, ThemeColors } from '@/context/ThemeContext';
+
+/** Branded header title: app logo + name, shown on every tab. */
+function BrandHeader({ colors }: { colors: ThemeColors }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 8,
+          backgroundColor: colors.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Ionicons name="receipt-outline" size={18} color="#FFFFFF" />
+      </View>
+      <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>QuickBill Pro</Text>
+    </View>
+  );
+}
 
 export default function TabNavigator() {
   const { user, isOwner } = useAuth();
@@ -22,6 +44,8 @@ export default function TabNavigator() {
         headerStyle: { backgroundColor: colors.card },
         headerTitleStyle: { color: colors.text },
         headerTintColor: colors.text,
+        headerTitleAlign: 'left',
+        headerTitle: () => <BrandHeader colors={colors} />,
       }}
     >
       <Tabs.Screen
