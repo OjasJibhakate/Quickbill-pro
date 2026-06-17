@@ -217,7 +217,7 @@ export default function DashboardScreen() {
         {topCustomers.length === 0 ? (
           <Card>
             <Text style={{ color: colors.textMuted }}>
-              No named-customer sales yet. Attach customers to bills (Customers phase) to rank them here.
+              No customer-linked sales in this period yet. Pick a customer on the bill to rank them here.
             </Text>
           </Card>
         ) : (

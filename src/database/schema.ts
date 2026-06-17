@@ -38,7 +38,20 @@ export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       name TEXT NOT NULL,
       phone TEXT,
       creditLimit REAL DEFAULT 0,
-      currentDue REAL DEFAULT 0
+      currentDue REAL DEFAULT 0,
+      discountPct REAL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS credit_transactions (
+      id TEXT PRIMARY KEY,
+      customerId TEXT NOT NULL,
+      saleId TEXT,
+      amount REAL NOT NULL,
+      type TEXT NOT NULL,
+      note TEXT,
+      userId TEXT,
+      timestamp TEXT NOT NULL,
+      FOREIGN KEY(customerId) REFERENCES customers(id)
     );
 
     CREATE TABLE IF NOT EXISTS shifts (
@@ -123,4 +136,7 @@ const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
   await addColumnIfMissing('sales', 'customerName', 'TEXT');
   await addColumnIfMissing('sales', 'customerPhone', 'TEXT');
   await addColumnIfMissing('sales', 'customerAddress', 'TEXT');
+
+  // Customer-specific default discount (Phase A).
+  await addColumnIfMissing('customers', 'discountPct', 'REAL DEFAULT 0');
 };

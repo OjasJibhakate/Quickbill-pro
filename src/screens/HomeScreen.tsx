@@ -6,7 +6,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
-import { getHomeStats, getRecentSales, getLowStockProducts, RecentSale } from '@/database/repo';
+import {
+  getHomeStats,
+  getRecentSales,
+  getLowStockProducts,
+  getTotalOutstanding,
+  RecentSale,
+} from '@/database/repo';
 import { HomeStats, Product } from '@/types';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { Card } from '@/components/ui';
@@ -24,16 +30,19 @@ export default function HomeScreen() {
   });
   const [recent, setRecent] = useState<RecentSale[]>([]);
   const [lowStock, setLowStock] = useState<Product[]>([]);
+  const [outstanding, setOutstanding] = useState(0);
 
   useReload(async () => {
-    const [s, r, l] = await Promise.all([
+    const [s, r, l, due] = await Promise.all([
       getHomeStats(),
       getRecentSales(6),
       getLowStockProducts(),
+      getTotalOutstanding(),
     ]);
     setStats(s);
     setRecent(r);
     setLowStock(l);
+    setOutstanding(due);
   });
 
   const StatCard = ({
@@ -97,6 +106,32 @@ export default function HomeScreen() {
             <Text style={[styles.actionText, { color: colors.text }]}>Add Product</Text>
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity onPress={() => router.push('/customers')}>
+          <Card style={styles.udhaarCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <View style={[styles.udhaarIcon, { backgroundColor: colors.primary + '22' }]}>
+                <Ionicons name="people-outline" size={22} color={colors.primary} />
+              </View>
+              <View>
+                <Text style={{ color: colors.text, fontWeight: '700' }}>Customers & Udhaar</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Total outstanding</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text
+                style={{
+                  color: outstanding > 0 ? colors.danger : colors.success,
+                  fontWeight: '800',
+                  fontSize: 16,
+                }}
+              >
+                {formatCurrency(outstanding)}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </View>
+          </Card>
+        </TouchableOpacity>
 
         {lowStock.length > 0 && (
           <Card style={{ marginTop: 18, backgroundColor: colors.warning + '18', borderColor: colors.warning }}>
@@ -173,6 +208,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 12 },
   action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 12 },
   actionText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  udhaarCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
+  udhaarIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   alertHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   alertTitle: { fontWeight: '700' },
   lowRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },

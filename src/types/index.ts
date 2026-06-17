@@ -27,6 +27,20 @@ export interface Customer {
   phone?: string | null;
   creditLimit: number;
   currentDue: number;
+  discountPct: number;
+}
+
+export type CreditTxnType = 'charge' | 'payment';
+
+export interface CreditTransaction {
+  id: string;
+  customerId: string;
+  saleId?: string | null;
+  amount: number;
+  type: CreditTxnType;
+  note?: string | null;
+  userId?: string | null;
+  timestamp: string;
 }
 
 export interface Sale {

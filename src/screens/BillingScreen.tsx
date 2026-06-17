@@ -15,10 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
-import { getProducts, checkout } from '@/database/repo';
-import { Product, CartItem, PaymentMethod } from '@/types';
+import { getProducts, checkout, getCustomers, saveCustomer } from '@/database/repo';
+import { Product, CartItem, PaymentMethod, Customer } from '@/types';
 import { formatCurrency } from '@/utils/format';
-import { Button } from '@/components/ui';
+import { Button, Field } from '@/components/ui';
 
 type DiscountMode = 'amount' | 'percent';
 
@@ -41,8 +41,18 @@ export default function BillingScreen() {
   const [custPhone, setCustPhone] = useState('');
   const [custAddress, setCustAddress] = useState('');
 
+  // Saved-customer link (for udhaar / customer discount).
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+
   const reload = useReload(async () => {
-    setProducts(await getProducts());
+    const [prods, custs] = await Promise.all([getProducts(), getCustomers()]);
+    setProducts(prods);
+    setCustomers(custs);
   });
 
   const filtered = useMemo(() => {
@@ -113,6 +123,39 @@ export default function BillingScreen() {
     setCustName('');
     setCustPhone('');
     setCustAddress('');
+    setCustomer(null);
+  };
+
+  const selectCustomer = (c: Customer) => {
+    setCustomer(c);
+    setPickerOpen(false);
+    setShowCustomer(false);
+    setCustName('');
+    setCustPhone('');
+    // Auto-apply the customer's standing discount if none typed yet.
+    if (c.discountPct > 0 && !discount) {
+      setDiscountMode('percent');
+      setDiscount(String(c.discountPct));
+    }
+  };
+
+  const quickAddCustomer = async () => {
+    if (!newName.trim()) {
+      Alert.alert('Missing name', 'Enter a customer name.');
+      return;
+    }
+    const id = await saveCustomer({
+      name: newName.trim(),
+      phone: newPhone.trim() || null,
+      creditLimit: 0,
+      discountPct: 0,
+    });
+    const list = await getCustomers();
+    setCustomers(list);
+    setNewName('');
+    setNewPhone('');
+    const created = list.find((c) => c.id === id);
+    if (created) selectCustomer(created);
   };
 
   const confirmPayment = async (method: PaymentMethod) => {
@@ -127,6 +170,24 @@ export default function BillingScreen() {
       );
       return;
     }
+    // Udhaar must be tied to a saved customer, and must respect their limit.
+    if (method === 'credit') {
+      if (!customer) {
+        setPayOpen(false);
+        Alert.alert('Customer needed', 'Select a saved customer to put this bill on udhaar.');
+        return;
+      }
+      if (customer.creditLimit > 0 && customer.currentDue + total > customer.creditLimit) {
+        setPayOpen(false);
+        Alert.alert(
+          'Credit limit exceeded',
+          `${customer.name} can owe up to ${formatCurrency(customer.creditLimit)}. Current due is ${formatCurrency(
+            customer.currentDue
+          )}.`
+        );
+        return;
+      }
+    }
     setBusy(true);
     try {
       const charged = total;
@@ -135,8 +196,9 @@ export default function BillingScreen() {
         discountAmount: discountValue,
         paymentMethod: method,
         userId: user.id,
-        customerName: custName,
-        customerPhone: custPhone,
+        customerId: customer?.id ?? null,
+        customerName: customer?.name ?? custName,
+        customerPhone: customer?.phone ?? custPhone,
         customerAddress: custAddress,
       });
       setPayOpen(false);
@@ -285,47 +347,72 @@ export default function BillingScreen() {
                 {formatCurrency(total)}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => setShowCustomer((v) => !v)}
-              style={styles.customerToggle}
-            >
-              <Ionicons
-                name={showCustomer ? 'chevron-down' : 'chevron-forward'}
-                size={16}
-                color={colors.primary}
-              />
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>
-                {custName || custPhone
-                  ? `Customer: ${custName || custPhone}`
-                  : 'Add customer details (optional)'}
-              </Text>
-            </TouchableOpacity>
-
-            {showCustomer && (
-              <View style={{ gap: 8, marginTop: 8 }}>
-                <TextInput
-                  placeholder="Name"
-                  placeholderTextColor={colors.textMuted}
-                  value={custName}
-                  onChangeText={setCustName}
-                  style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
-                />
-                <TextInput
-                  placeholder="Phone (for WhatsApp invoice)"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="phone-pad"
-                  value={custPhone}
-                  onChangeText={setCustPhone}
-                  style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
-                />
-                <TextInput
-                  placeholder="Address"
-                  placeholderTextColor={colors.textMuted}
-                  value={custAddress}
-                  onChangeText={setCustAddress}
-                  style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
-                />
+            {/* Saved customer link (udhaar / customer discount) */}
+            {customer ? (
+              <View style={[styles.custChip, { borderColor: colors.border }]}>
+                <Ionicons name="person-circle" size={28} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: '700' }}>{customer.name}</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    {customer.currentDue > 0 ? `Due ${formatCurrency(customer.currentDue)}` : 'No dues'}
+                    {customer.discountPct > 0 ? ` · ${customer.discountPct}% off` : ''}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setCustomer(null)} hitSlop={8}>
+                  <Ionicons name="close-circle" size={24} color={colors.textMuted} />
+                </TouchableOpacity>
               </View>
+            ) : (
+              <TouchableOpacity style={styles.customerToggle} onPress={() => setPickerOpen(true)}>
+                <Ionicons name="person-add-outline" size={18} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                  Add customer (udhaar / discount)
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Walk-in invoice details, only when no saved customer is linked */}
+            {!customer && (
+              <>
+                <TouchableOpacity onPress={() => setShowCustomer((v) => !v)} style={styles.customerToggle}>
+                  <Ionicons
+                    name={showCustomer ? 'chevron-down' : 'chevron-forward'}
+                    size={16}
+                    color={colors.textMuted}
+                  />
+                  <Text style={{ color: colors.textMuted, fontWeight: '600' }}>
+                    {custName || custPhone
+                      ? `Walk-in: ${custName || custPhone}`
+                      : 'Or add name / phone for invoice (optional)'}
+                  </Text>
+                </TouchableOpacity>
+                {showCustomer && (
+                  <View style={{ gap: 8, marginTop: 8 }}>
+                    <TextInput
+                      placeholder="Name"
+                      placeholderTextColor={colors.textMuted}
+                      value={custName}
+                      onChangeText={setCustName}
+                      style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
+                    />
+                    <TextInput
+                      placeholder="Phone (for WhatsApp invoice)"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="phone-pad"
+                      value={custPhone}
+                      onChangeText={setCustPhone}
+                      style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
+                    />
+                    <TextInput
+                      placeholder="Address"
+                      placeholderTextColor={colors.textMuted}
+                      value={custAddress}
+                      onChangeText={setCustAddress}
+                      style={[styles.custInput, { color: colors.text, borderColor: colors.border }]}
+                    />
+                  </View>
+                )}
+              </>
             )}
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
@@ -394,6 +481,80 @@ export default function BillingScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Customer picker */}
+      <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={[styles.pickerHeader, { borderColor: colors.border }]}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>Select Customer</Text>
+            <TouchableOpacity onPress={() => setPickerOpen(false)}>
+              <Ionicons name="close" size={26} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ padding: 16 }}>
+            <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="search" size={18} color={colors.textMuted} />
+              <TextInput
+                placeholder="Search customers"
+                placeholderTextColor={colors.textMuted}
+                value={pickerSearch}
+                onChangeText={setPickerSearch}
+                style={[styles.searchInput, { color: colors.text }]}
+              />
+            </View>
+
+            <View style={[styles.quickAdd, { borderColor: colors.border }]}>
+              <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>
+                NEW CUSTOMER
+              </Text>
+              <Field
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="Name"
+                containerStyle={{ marginBottom: 8 }}
+              />
+              <Field
+                value={newPhone}
+                onChangeText={setNewPhone}
+                placeholder="Phone (optional)"
+                keyboardType="phone-pad"
+                containerStyle={{ marginBottom: 8 }}
+              />
+              <Button title="Add & Select" onPress={quickAddCustomer} />
+            </View>
+          </View>
+
+          <FlatList
+            data={customers.filter((c) => {
+              const q = pickerSearch.trim().toLowerCase();
+              return !q || c.name.toLowerCase().includes(q) || (c.phone ?? '').includes(q);
+            })}
+            keyExtractor={(c) => c.id}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+            ListEmptyComponent={
+              <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 20 }}>
+                No customers. Add one above.
+              </Text>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                onPress={() => selectCustomer(item)}
+                style={[styles.pickerRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: '700' }}>{item.name}</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    {item.phone || 'No phone'}
+                    {item.currentDue > 0 ? ` · Due ${formatCurrency(item.currentDue)}` : ''}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -445,6 +606,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 14,
+  },
+  custChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 10,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  quickAdd: { borderWidth: 1, borderRadius: 12, padding: 12 },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
   },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#0008' },
   modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },

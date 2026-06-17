@@ -7,6 +7,7 @@ import {
   PaymentMethod,
   HomeStats,
   Customer,
+  CreditTransaction,
 } from '@/types';
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -132,9 +133,99 @@ export const getLowStockProducts = async (): Promise<Product[]> => {
 /*  Customers                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export const getCustomers = async (): Promise<Customer[]> => {
+export const getCustomers = async (search = ''): Promise<Customer[]> => {
   const db = await getDB();
+  if (search.trim()) {
+    const q = `%${search.trim()}%`;
+    return db.getAllAsync<Customer>(
+      'SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? ORDER BY name COLLATE NOCASE',
+      [q, q]
+    );
+  }
   return db.getAllAsync<Customer>('SELECT * FROM customers ORDER BY name COLLATE NOCASE');
+};
+
+export const getCustomerById = async (id: string): Promise<Customer | null> => {
+  const db = await getDB();
+  return db.getFirstAsync<Customer>('SELECT * FROM customers WHERE id = ?', [id]);
+};
+
+/** Insert (no id) or update (id present). Never overwrites currentDue. */
+export const saveCustomer = async (
+  c: Pick<Customer, 'name' | 'phone' | 'creditLimit' | 'discountPct'> & { id?: string }
+): Promise<string> => {
+  const db = await getDB();
+  if (c.id) {
+    await db.runAsync(
+      'UPDATE customers SET name = ?, phone = ?, creditLimit = ?, discountPct = ? WHERE id = ?',
+      [c.name, c.phone ?? null, c.creditLimit, c.discountPct, c.id]
+    );
+    return c.id;
+  }
+  const id = newId('cust');
+  await db.runAsync(
+    `INSERT INTO customers (id, name, phone, creditLimit, currentDue, discountPct)
+       VALUES (?, ?, ?, ?, 0, ?)`,
+    [id, c.name, c.phone ?? null, c.creditLimit, c.discountPct]
+  );
+  return id;
+};
+
+export const deleteCustomer = async (id: string): Promise<void> => {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM credit_transactions WHERE customerId = ?', [id]);
+  await db.runAsync('DELETE FROM customers WHERE id = ?', [id]);
+};
+
+export const getTotalOutstanding = async (): Promise<number> => {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ total: number }>(
+    'SELECT COALESCE(SUM(currentDue), 0) AS total FROM customers'
+  );
+  return row?.total ?? 0;
+};
+
+/** Records a repayment: lowers the due (not below 0) and logs a ledger entry. */
+export const recordPayment = async (
+  customerId: string,
+  amount: number,
+  userId: string,
+  note = ''
+): Promise<void> => {
+  if (amount <= 0) return;
+  const db = await getDB();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('UPDATE customers SET currentDue = MAX(0, currentDue - ?) WHERE id = ?', [
+      amount,
+      customerId,
+    ]);
+    await db.runAsync(
+      `INSERT INTO credit_transactions (id, customerId, saleId, amount, type, note, userId, timestamp)
+         VALUES (?, ?, NULL, ?, 'payment', ?, ?, ?)`,
+      [newId('ct'), customerId, amount, note || null, userId, new Date().toISOString()]
+    );
+  });
+  await logActivity(userId, 'PAYMENT', `Customer ${customerId} paid ${amount}`);
+};
+
+export const getCustomerTransactions = async (
+  customerId: string,
+  limit = 50
+): Promise<CreditTransaction[]> => {
+  const db = await getDB();
+  return db.getAllAsync<CreditTransaction>(
+    'SELECT * FROM credit_transactions WHERE customerId = ? ORDER BY timestamp DESC LIMIT ?',
+    [customerId, limit]
+  );
+};
+
+export const getCustomerSales = async (customerId: string): Promise<RecentSale[]> => {
+  const db = await getDB();
+  return db.getAllAsync<RecentSale>(
+    `SELECT s.*, (SELECT COALESCE(SUM(quantity), 0) FROM sale_items WHERE saleId = s.id) AS itemCount
+       FROM sales s WHERE s.customerId = ? ORDER BY s.date DESC`,
+    [customerId]
+  );
 };
 
 /* -------------------------------------------------------------------------- */
@@ -200,12 +291,17 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
       ]);
     }
 
-    // On-credit sales add to the customer's outstanding due.
+    // On-credit sales add to the customer's outstanding due and ledger.
     if (input.paymentMethod === 'credit' && input.customerId) {
       await db.runAsync('UPDATE customers SET currentDue = currentDue + ? WHERE id = ?', [
         final,
         input.customerId,
       ]);
+      await db.runAsync(
+        `INSERT INTO credit_transactions (id, customerId, saleId, amount, type, note, userId, timestamp)
+           VALUES (?, ?, ?, ?, 'charge', NULL, ?, ?)`,
+        [newId('ct'), input.customerId, saleId, final, input.userId, now]
+      );
     }
   });
 
