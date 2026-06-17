@@ -29,8 +29,7 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-camera",
-      "expo-sharing"
+      "expo-camera"
     ],
     "scheme": "quickbillpro",
     "experiments": {
