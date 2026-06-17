@@ -27,6 +27,7 @@ function RootStack() {
         <Stack.Screen name="sale/[id]" options={{ headerShown: true, title: 'Sale Details' }} />
         <Stack.Screen name="customers" options={{ headerShown: true, title: 'Customers & Udhaar' }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true, title: 'Customer' }} />
+        <Stack.Screen name="users" options={{ headerShown: true, title: 'Staff & PINs' }} />
       </Stack>
     </>
   );

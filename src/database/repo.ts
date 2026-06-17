@@ -8,6 +8,8 @@ import {
   HomeStats,
   Customer,
   CreditTransaction,
+  User,
+  Role,
 } from '@/types';
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -26,6 +28,70 @@ export const logActivity = async (
     'INSERT INTO activity_logs (id, userId, action, details, timestamp) VALUES (?, ?, ?, ?, ?)',
     [newId('log'), userId, action, details, new Date().toISOString()]
   );
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Users / staff (owner-managed)                                            */
+/* -------------------------------------------------------------------------- */
+
+export const getUsers = async (): Promise<User[]> => {
+  const db = await getDB();
+  return db.getAllAsync<User>(
+    "SELECT * FROM users ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, name COLLATE NOCASE"
+  );
+};
+
+export const getUserById = async (id: string): Promise<User | null> => {
+  const db = await getDB();
+  return db.getFirstAsync<User>('SELECT * FROM users WHERE id = ?', [id]);
+};
+
+export interface SaveUserInput {
+  id?: string;
+  name: string;
+  pin: string;
+  role: Role;
+  maxDiscount: number;
+}
+
+/** Creates or updates a staff account. Enforces a 4-digit, unique PIN. */
+export const saveUser = async (u: SaveUserInput): Promise<string> => {
+  const db = await getDB();
+  if (!/^\d{4}$/.test(u.pin)) throw new Error('PIN must be exactly 4 digits.');
+
+  const clash = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM users WHERE pin = ? AND id <> ?',
+    [u.pin, u.id ?? '']
+  );
+  if (clash) throw new Error('That PIN is already used by another account.');
+
+  if (u.id) {
+    await db.runAsync(
+      'UPDATE users SET name = ?, pin = ?, role = ?, maxDiscount = ? WHERE id = ?',
+      [u.name, u.pin, u.role, u.maxDiscount, u.id]
+    );
+    return u.id;
+  }
+  const id = newId('user');
+  await db.runAsync(
+    'INSERT INTO users (id, name, pin, role, maxDiscount) VALUES (?, ?, ?, ?, ?)',
+    [id, u.name, u.pin, u.role, u.maxDiscount]
+  );
+  return id;
+};
+
+/** Removes a staff account. Refuses to delete the final owner. */
+export const deleteUser = async (id: string): Promise<void> => {
+  const db = await getDB();
+  const target = await db.getFirstAsync<User>('SELECT * FROM users WHERE id = ?', [id]);
+  if (!target) return;
+  if (target.role === 'owner') {
+    const owners = await db.getFirstAsync<{ c: number }>(
+      "SELECT COUNT(*) AS c FROM users WHERE role = 'owner'"
+    );
+    if ((owners?.c ?? 0) <= 1) throw new Error('You cannot delete the only owner account.');
+  }
+  await db.runAsync('DELETE FROM users WHERE id = ?', [id]);
 };
 
 /* -------------------------------------------------------------------------- */
@@ -62,7 +128,7 @@ export const saveProduct = async (
   if (p.id) {
     await db.runAsync(
       `UPDATE products SET name = ?, barcode = ?, buyPrice = ?, sellPrice = ?,
-         stock = ?, unit = ?, expiryDate = ?, category = ? WHERE id = ?`,
+         stock = ?, unit = ?, expiryDate = ?, category = ?, maxDiscount = ? WHERE id = ?`,
       [
         p.name,
         p.barcode ?? null,
@@ -72,6 +138,7 @@ export const saveProduct = async (
         p.unit,
         p.expiryDate ?? null,
         p.category ?? null,
+        p.maxDiscount ?? null,
         p.id,
       ]
     );
@@ -79,8 +146,8 @@ export const saveProduct = async (
   }
   const id = newId('prod');
   await db.runAsync(
-    `INSERT INTO products (id, name, barcode, buyPrice, sellPrice, stock, unit, expiryDate, category)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (id, name, barcode, buyPrice, sellPrice, stock, unit, expiryDate, category, maxDiscount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       p.name,
@@ -91,6 +158,7 @@ export const saveProduct = async (
       p.unit,
       p.expiryDate ?? null,
       p.category ?? null,
+      p.maxDiscount ?? null,
     ]
   );
   return id;

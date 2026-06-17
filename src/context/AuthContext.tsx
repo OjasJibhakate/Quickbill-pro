@@ -10,6 +10,7 @@ interface AuthContextType {
   user: User | null;
   login: (pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isLoading: boolean;
   isOwner: boolean;
 }
@@ -69,9 +70,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await AsyncStorage.removeItem(STORAGE_KEY);
   };
 
+  // Re-read the active user from the DB after their account is edited.
+  const refreshUser = async () => {
+    if (!user) return;
+    const db = await getDB();
+    const fresh = await db.getFirstAsync<User>('SELECT * FROM users WHERE id = ?', [user.id]);
+    if (fresh) setUser(fresh);
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, login, logout, isLoading, isOwner: user?.role === 'owner' }}
+      value={{ user, login, logout, refreshUser, isLoading, isOwner: user?.role === 'owner' }}
     >
       {children}
     </AuthContext.Provider>

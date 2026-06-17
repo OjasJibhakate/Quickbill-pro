@@ -30,7 +30,8 @@ export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       stock INTEGER NOT NULL DEFAULT 0,
       unit TEXT DEFAULT 'pcs',
       expiryDate TEXT,
-      category TEXT
+      category TEXT,
+      maxDiscount REAL
     );
 
     CREATE TABLE IF NOT EXISTS customers (
@@ -139,4 +140,7 @@ const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
 
   // Customer-specific default discount (Phase A).
   await addColumnIfMissing('customers', 'discountPct', 'REAL DEFAULT 0');
+
+  // Per-product max employee discount override (null = use employee default).
+  await addColumnIfMissing('products', 'maxDiscount', 'REAL');
 };

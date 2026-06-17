@@ -10,7 +10,7 @@ import { Card, Button, Field } from '@/components/ui';
 
 export default function SettingsScreen() {
   const { colors, themeMode, setThemeMode } = useTheme();
-  const { user, logout } = useAuth();
+  const { user, logout, isOwner } = useAuth();
   const { storeName, setStoreName } = useStore();
   const router = useRouter();
 
@@ -65,6 +65,24 @@ export default function SettingsScreen() {
             containerStyle={{ marginBottom: 0 }}
           />
         </Card>
+
+        {isOwner && (
+          <>
+            <Text style={[styles.section, { color: colors.textMuted }]}>STAFF</Text>
+            <TouchableOpacity onPress={() => router.push('/users')}>
+              <Card style={styles.linkRow}>
+                <Ionicons name="people-outline" size={20} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: '600' }}>Manage staff & PINs</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    Change PINs, add employees, set discount limits
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </Card>
+            </TouchableOpacity>
+          </>
+        )}
 
         <Text style={[styles.section, { color: colors.textMuted }]}>APPEARANCE</Text>
         <Card>
@@ -126,5 +144,6 @@ const styles = StyleSheet.create({
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   section: { fontSize: 12, fontWeight: '700', marginTop: 24, marginBottom: 8, letterSpacing: 1 },
   themeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14 },
 });

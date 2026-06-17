@@ -31,6 +31,7 @@ interface FormState {
   unit: string;
   category: string;
   expiryDate: string;
+  maxDiscount: string;
 }
 
 const emptyForm: FormState = {
@@ -42,6 +43,7 @@ const emptyForm: FormState = {
   unit: 'pcs',
   category: '',
   expiryDate: '',
+  maxDiscount: '',
 };
 
 export default function ProductsScreen() {
@@ -80,6 +82,7 @@ export default function ProductsScreen() {
       unit: p.unit,
       category: p.category ?? '',
       expiryDate: p.expiryDate ?? '',
+      maxDiscount: p.maxDiscount != null ? String(p.maxDiscount) : '',
     });
     setModalOpen(true);
   };
@@ -126,6 +129,7 @@ export default function ProductsScreen() {
         unit: form.unit.trim() || 'pcs',
         category: form.category.trim() || null,
         expiryDate: form.expiryDate.trim() || null,
+        maxDiscount: form.maxDiscount.trim() === '' ? null : parseFloat(form.maxDiscount) || 0,
       });
       setModalOpen(false);
       reload();
@@ -263,6 +267,14 @@ export default function ProductsScreen() {
               )}
 
               <Field label="Barcode" value={form.barcode} onChangeText={(t) => set('barcode', t)} keyboardType="numeric" placeholder="Optional" />
+
+              <Field
+                label="Max employee discount % (optional)"
+                value={form.maxDiscount}
+                onChangeText={(t) => set('maxDiscount', t)}
+                keyboardType="numeric"
+                placeholder="Blank = use employee's global limit"
+              />
 
               <Field
                 label="Expiry Date"

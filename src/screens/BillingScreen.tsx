@@ -78,7 +78,16 @@ export default function BillingScreen() {
 
   const discountPct = subtotal > 0 ? (discountValue / subtotal) * 100 : 0;
   const total = subtotal - discountValue;
-  const maxDiscountAllowed = subtotal * ((user?.maxDiscount ?? 0) / 100);
+
+  // Owner is unlimited; employees are capped per line by the product's own
+  // max discount when set, otherwise by their global limit.
+  const maxDiscountAllowed = useMemo(() => {
+    if (user?.role === 'owner') return subtotal;
+    return cart.reduce((sum, it) => {
+      const cap = it.product.maxDiscount ?? user?.maxDiscount ?? 0;
+      return sum + (it.product.sellPrice * it.quantity * cap) / 100;
+    }, 0);
+  }, [cart, subtotal, user]);
 
   const addToCart = (product: Product) => {
     if (product.stock <= 0) {

@@ -19,6 +19,8 @@ export interface Product {
   unit: string;
   expiryDate?: string | null;
   category?: string | null;
+  /** Per-product max discount % for employees; null = use the employee's global limit. */
+  maxDiscount?: number | null;
 }
 
 export interface Customer {
