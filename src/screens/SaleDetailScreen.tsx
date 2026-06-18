@@ -176,38 +176,32 @@ export default function SaleDetailScreen() {
 
         <Text style={[styles.section, { color: colors.text }]}>Items</Text>
         <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 10 }}>
-          Adjust quantity for returns or corrections. Set to 0 to remove an item.
-          {isOwner ? ' Tap a price to give extra discount or correct it.' : ''}
+          Adjust quantity for returns or corrections. Set to 0 to remove an item. Tap a
+          price to give extra discount or correct it.
         </Text>
 
         {lines.map((l) => (
           <Card key={l.productId} style={[styles.itemRow, { opacity: l.quantity === 0 ? 0.5 : 1 }]}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.text, fontWeight: '700' }}>{l.name}</Text>
-              {isOwner ? (
-                <View style={styles.priceRow}>
-                  <Text style={{ color: colors.textMuted, fontSize: 14 }}>₹</Text>
-                  <TextInput
-                    value={l.priceStr}
-                    onChangeText={(t) => setPrice(l.productId, t)}
-                    keyboardType="decimal-pad"
-                    selectTextOnFocus
-                    placeholder="0"
-                    placeholderTextColor={colors.textMuted}
-                    style={[
-                      styles.priceInput,
-                      { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
-                    ]}
-                  />
-                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                    each{l.price !== l.origPrice ? ` · was ${formatCurrency(l.origPrice)}` : ''}
-                  </Text>
-                </View>
-              ) : (
+              <View style={styles.priceRow}>
+                <Text style={{ color: colors.textMuted, fontSize: 14 }}>₹</Text>
+                <TextInput
+                  value={l.priceStr}
+                  onChangeText={(t) => setPrice(l.productId, t)}
+                  keyboardType="decimal-pad"
+                  selectTextOnFocus
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                  style={[
+                    styles.priceInput,
+                    { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
+                  ]}
+                />
                 <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                  {formatCurrency(l.price)} each
+                  each{l.price !== l.origPrice ? ` · was ${formatCurrency(l.origPrice)}` : ''}
                 </Text>
-              )}
+              </View>
               <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
                 {l.deleted ? 'product deleted' : `up to ${l.maxQty} ${l.unit}`}
               </Text>
