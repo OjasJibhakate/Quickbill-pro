@@ -145,7 +145,7 @@ export default function HomeScreen() {
               </View>
               <View>
                 <Text style={{ color: colors.text, fontWeight: '700' }}>Shift & Day Close</Text>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Cash drawer & Z-report</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Optional · cash drawer & Z-report</Text>
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

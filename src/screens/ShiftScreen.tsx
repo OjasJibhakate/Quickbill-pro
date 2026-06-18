@@ -138,7 +138,7 @@ export default function ShiftScreen() {
               No shift open
             </Text>
             <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 4, marginBottom: 16 }}>
-              Open a shift to track the cash drawer and sales for your session.
+              Shifts are optional. Open one only if you want to track the cash drawer and a Z-report for your session.
             </Text>
             <Button title="Open Shift" onPress={() => setOpenModal(true)} style={{ alignSelf: 'stretch' }} />
           </Card>
@@ -177,10 +177,10 @@ export default function ShiftScreen() {
               Open Shift
             </Text>
             <Text style={{ color: colors.textMuted, marginBottom: 14 }}>
-              How much cash is in the drawer to start?
+              Opening cash is optional — leave it blank if you don't know the amount.
             </Text>
             <TextInput
-              placeholder="Opening cash (float)"
+              placeholder="Opening cash (optional)"
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
               value={floatAmount}

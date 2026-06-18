@@ -203,11 +203,11 @@ export default function UsersScreen() {
 
               {form.role === 'employee' && (
                 <Field
-                  label="Max discount % on a bill"
+                  label="Max discount % on a bill (optional)"
                   value={form.maxDiscount}
                   onChangeText={(t) => set('maxDiscount', t)}
                   keyboardType="numeric"
-                  placeholder="e.g. 10"
+                  placeholder="e.g. 10 (0 = no discount allowed)"
                   containerStyle={{ marginTop: 14 }}
                 />
               )}
