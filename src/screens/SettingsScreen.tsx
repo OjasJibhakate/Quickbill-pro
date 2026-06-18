@@ -88,18 +88,32 @@ export default function SettingsScreen() {
         </Card>
 
         {isOwner && (
-          <TouchableOpacity onPress={() => router.push('/export')}>
-            <Card style={[styles.linkRow, { marginTop: 12 }]}>
-              <Ionicons name="document-text-outline" size={20} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '600' }}>Export to Excel</Text>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                  Sales, inventory & customers as .xlsx
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-            </Card>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity onPress={() => router.push('/export')}>
+              <Card style={[styles.linkRow, { marginTop: 12 }]}>
+                <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: '600' }}>Export to Excel</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    Sales, inventory & customers as .xlsx
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </Card>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/backup')}>
+              <Card style={[styles.linkRow, { marginTop: 10 }]}>
+                <Ionicons name="cloud-upload-outline" size={20} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: '600' }}>Backup & Restore</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    Save all data to your Google Drive
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </Card>
+            </TouchableOpacity>
+          </>
         )}
 
         {isOwner && (

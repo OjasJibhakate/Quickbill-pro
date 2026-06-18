@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
 
 /** Renders HTML to a PDF and opens the share sheet (WhatsApp, email, etc.). */
@@ -39,4 +40,31 @@ export const exportXlsx = async (fileName: string, sheets: ExportSheet[]): Promi
       UTI: 'com.microsoft.excel.xlsx',
     });
   }
+};
+
+/** Writes text to a cache file and opens the share sheet (e.g. save to Drive). */
+export const shareTextFile = async (
+  fileName: string,
+  content: string,
+  mimeType = 'application/json'
+): Promise<void> => {
+  const uri = `${FileSystem.cacheDirectory}${fileName}`;
+  await FileSystem.writeAsStringAsync(uri, content, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri, { mimeType, dialogTitle: 'Save backup' });
+  }
+};
+
+/** Lets the user pick a file (e.g. from Drive) and returns its text contents. */
+export const pickAndReadTextFile = async (): Promise<string | null> => {
+  const res = await DocumentPicker.getDocumentAsync({
+    type: ['application/json', '*/*'],
+    copyToCacheDirectory: true,
+  });
+  if (res.canceled || !res.assets || !res.assets[0]) return null;
+  return FileSystem.readAsStringAsync(res.assets[0].uri, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
 };

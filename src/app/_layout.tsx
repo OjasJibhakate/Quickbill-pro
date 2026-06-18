@@ -38,6 +38,7 @@ function RootStack() {
         <Stack.Screen name="scan" options={{ headerShown: false }} />
         <Stack.Screen name="invoice/[id]" options={{ headerShown: true, title: 'Invoice' }} />
         <Stack.Screen name="export" options={{ headerShown: true, title: 'Export to Excel' }} />
+        <Stack.Screen name="backup" options={{ headerShown: true, title: 'Backup & Restore' }} />
       </Stack>
     </>
   );
