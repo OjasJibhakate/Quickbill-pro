@@ -117,12 +117,16 @@ export default function HomeScreen() {
               <View style={[styles.udhaarIcon, { backgroundColor: colors.primary + '22' }]}>
                 <Ionicons name="people-outline" size={22} color={colors.primary} />
               </View>
-              <View>
-                <Text style={{ color: colors.text, fontWeight: '700' }}>Customers & Udhaar</Text>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Total outstanding</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '700' }} numberOfLines={1}>
+                  Customers & Udhaar
+                </Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>
+                  Total outstanding
+                </Text>
               </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 8 }}>
               <Text
                 style={{
                   color: outstanding > 0 ? colors.danger : colors.success,
@@ -143,12 +147,16 @@ export default function HomeScreen() {
               <View style={[styles.udhaarIcon, { backgroundColor: colors.primary + '22' }]}>
                 <Ionicons name="time-outline" size={22} color={colors.primary} />
               </View>
-              <View>
-                <Text style={{ color: colors.text, fontWeight: '700' }}>Shift & Day Close</Text>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Optional · cash drawer & Z-report</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '700' }} numberOfLines={1}>
+                  Shift & Day Close
+                </Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>
+                  Optional · cash drawer & Z-report
+                </Text>
               </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
               <View
                 style={[
                   styles.shiftPill,
