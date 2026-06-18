@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
 import { getProducts, adjustStock } from '@/database/repo';
 import { Product } from '@/types';
@@ -22,6 +23,7 @@ type FilterMode = 'all' | 'low';
 
 export default function InventoryScreen() {
   const { colors } = useTheme();
+  const { isOwner } = useAuth();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState<FilterMode>('all');
@@ -35,6 +37,7 @@ export default function InventoryScreen() {
     () => products.reduce((s, p) => s + p.buyPrice * p.stock, 0),
     [products]
   );
+  const totalUnits = useMemo(() => products.reduce((s, p) => s + p.stock, 0), [products]);
   const lowCount = useMemo(() => products.filter((p) => p.stock <= 5).length, [products]);
 
   const shown = filter === 'low' ? products.filter((p) => p.stock <= 5) : products;
@@ -61,9 +64,11 @@ export default function InventoryScreen() {
       <View style={{ flex: 1, padding: 16 }}>
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
           <Card style={{ flex: 1, gap: 4 }}>
-            <Text style={{ color: colors.textMuted, fontSize: 13 }}>Stock Value</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+              {isOwner ? 'Stock Value' : 'Units in Stock'}
+            </Text>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>
-              {formatCurrency(stockValue)}
+              {isOwner ? formatCurrency(stockValue) : totalUnits}
             </Text>
           </Card>
           <Card style={{ flex: 1, gap: 4 }}>
@@ -76,8 +81,12 @@ export default function InventoryScreen() {
 
         <View style={styles.quickLinks}>
           {[
-            { label: 'Stock In', icon: 'download-outline' as const, href: '/stock-in' as const },
-            { label: 'Suppliers', icon: 'business-outline' as const, href: '/suppliers' as const },
+            ...(isOwner
+              ? ([
+                  { label: 'Stock In', icon: 'download-outline' as const, href: '/stock-in' as const },
+                  { label: 'Suppliers', icon: 'business-outline' as const, href: '/suppliers' as const },
+                ] as const)
+              : []),
             { label: 'Expiring', icon: 'alert-circle-outline' as const, href: '/expiring' as const },
           ].map((q) => (
             <TouchableOpacity

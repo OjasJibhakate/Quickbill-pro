@@ -27,7 +27,7 @@ import {
 import { Product, Supplier } from '@/types';
 import { formatCurrency, formatDateInput } from '@/utils/format';
 import { newId } from '@/utils/id';
-import { Button, Field } from '@/components/ui';
+import { Button, Field, EmptyState } from '@/components/ui';
 
 interface Line {
   key: string;
@@ -49,7 +49,7 @@ const isValidExpiry = (s: string): boolean => {
 export default function StockInScreen() {
   const params = useLocalSearchParams<{ supplierId?: string }>();
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, isOwner } = useAuth();
   const router = useRouter();
 
   const [supplier, setSupplier] = useState<Supplier | null>(null);
@@ -154,6 +154,14 @@ export default function StockInScreen() {
       setBusy(false);
     }
   };
+
+  if (!isOwner) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <EmptyState icon="🔒" title="Owner only" subtitle="Only the owner can record stock-in." />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: colors.background }}>

@@ -1,38 +1,51 @@
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Tabs, Redirect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
 import { useStore } from '@/context/StoreContext';
 
-/** Branded header title: "QBP" badge + the shop's name. */
-function BrandHeader({ colors, name }: { colors: ThemeColors; name: string }) {
+/** Branded header title: gradient "QBP" logo + the shop's name. */
+function BrandHeader({ colors, isDark, name }: { colors: ThemeColors; isDark: boolean; name: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <View
-        style={{
-          paddingHorizontal: 7,
-          height: 28,
-          borderRadius: 8,
-          backgroundColor: colors.primary,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+    <View style={styles.brandRow}>
+      <LinearGradient
+        colors={isDark ? (['#60A5FA', '#2563EB'] as const) : (['#3B82F6', '#1D4ED8'] as const)}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.logo}
       >
-        <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 13, letterSpacing: 0.5 }}>
-          QBP
-        </Text>
-      </View>
-      <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }} numberOfLines={1}>
+        <Text style={styles.logoText}>QBP</Text>
+      </LinearGradient>
+      <Text style={[styles.brandName, { color: colors.text }]} numberOfLines={1}>
         {name}
       </Text>
     </View>
   );
 }
 
+const styles = StyleSheet.create({
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logo: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+  logoText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12.5, letterSpacing: 0.8 },
+  brandName: { fontSize: 18, fontWeight: '800', letterSpacing: 0.3, maxWidth: 210 },
+});
+
 export default function TabNavigator() {
   const { user, isOwner } = useAuth();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { displayName } = useStore();
   const router = useRouter();
 
@@ -52,7 +65,7 @@ export default function TabNavigator() {
         headerTitleStyle: { color: colors.text },
         headerTintColor: colors.text,
         headerTitleAlign: 'left',
-        headerTitle: () => <BrandHeader colors={colors} name={displayName} />,
+        headerTitle: () => <BrandHeader colors={colors} isDark={isDark} name={displayName} />,
       }}
     >
       <Tabs.Screen

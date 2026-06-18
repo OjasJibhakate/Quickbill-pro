@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
 import { getProducts, saveProduct, deleteProduct, getCategories } from '@/database/repo';
 import { Product } from '@/types';
@@ -49,6 +50,7 @@ const emptyForm: FormState = {
 
 export default function ProductsScreen() {
   const { colors } = useTheme();
+  const { isOwner } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -193,12 +195,14 @@ export default function ProductsScreen() {
                     {item.category || 'Uncategorized'}
                     {item.barcode ? ` · ${item.barcode}` : ''}
                   </Text>
-                  <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
-                    Buy {formatCurrency(item.buyPrice)} · Margin{' '}
-                    <Text style={{ color: margin >= 0 ? colors.success : colors.danger }}>
-                      {formatCurrency(margin)}
+                  {isOwner && (
+                    <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                      Buy {formatCurrency(item.buyPrice)} · Margin{' '}
+                      <Text style={{ color: margin >= 0 ? colors.success : colors.danger }}>
+                        {formatCurrency(margin)}
+                      </Text>
                     </Text>
-                  </Text>
+                  )}
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 4 }}>
                   <Text style={{ color: colors.primary, fontWeight: '800' }}>
@@ -245,7 +249,9 @@ export default function ProductsScreen() {
             <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
               <Field label="Name *" value={form.name} onChangeText={(t) => set('name', t)} placeholder="e.g. Parle-G Biscuit" />
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Field label="Buy Price" containerStyle={{ flex: 1 }} value={form.buyPrice} onChangeText={(t) => set('buyPrice', t)} keyboardType="numeric" placeholder="0" />
+                {isOwner && (
+                  <Field label="Buy Price" containerStyle={{ flex: 1 }} value={form.buyPrice} onChangeText={(t) => set('buyPrice', t)} keyboardType="numeric" placeholder="0" />
+                )}
                 <Field label="Sell Price" containerStyle={{ flex: 1 }} value={form.sellPrice} onChangeText={(t) => set('sellPrice', t)} keyboardType="numeric" placeholder="0" />
               </View>
               <View style={{ flexDirection: 'row', gap: 12 }}>

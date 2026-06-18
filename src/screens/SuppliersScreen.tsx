@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
 import { getSuppliers, saveSupplier, getTotalPayable } from '@/database/repo';
 import { Supplier } from '@/types';
@@ -34,6 +35,7 @@ const emptyForm: FormState = { name: '', phone: '', contactPerson: '', address: 
 
 export default function SuppliersScreen() {
   const { colors } = useTheme();
+  const { isOwner } = useAuth();
   const router = useRouter();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [payable, setPayable] = useState(0);
@@ -78,6 +80,14 @@ export default function SuppliersScreen() {
       setSaving(false);
     }
   };
+
+  if (!isOwner) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <EmptyState icon="🔒" title="Owner only" subtitle="Only the owner manages suppliers." />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: colors.background }}>

@@ -25,7 +25,7 @@ import {
 } from '@/database/repo';
 import { Supplier } from '@/types';
 import { formatCurrency, formatDateTime } from '@/utils/format';
-import { Card, Button, Field } from '@/components/ui';
+import { Card, Button, Field, EmptyState } from '@/components/ui';
 
 export default function SupplierDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -124,6 +124,14 @@ export default function SupplierDetailScreen() {
       },
     ]);
   };
+
+  if (!isOwner) {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <EmptyState icon="🔒" title="Owner only" subtitle="Only the owner manages suppliers." />
+      </View>
+    );
+  }
 
   if (loading) {
     return (

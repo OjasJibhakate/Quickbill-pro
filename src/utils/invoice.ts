@@ -89,6 +89,8 @@ export const buildInvoiceHtml = (d: InvoiceData): string => {
   .footer { margin-top: 32px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px dashed #d1d5db; padding-top: 18px; }
   .thanks { font-size: 16px; font-weight: 700; }
   .qr { text-align: center; }
+  .brand { margin-top: 26px; text-align: center; color: #9ca3af; font-size: 11px; letter-spacing: .4px; }
+  .brand b { color: #2563EB; }
 </style>
 </head>
 <body>
@@ -136,6 +138,8 @@ export const buildInvoiceHtml = (d: InvoiceData): string => {
     </div>
     ${qrBlock}
   </div>
+
+  <div class="brand">Billed with <b>QuickBill Pro</b> — fast billing &amp; inventory for your store</div>
 </body>
 </html>`;
 };
