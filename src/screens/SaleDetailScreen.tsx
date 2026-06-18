@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -22,7 +23,10 @@ interface EditLine {
   productId: string;
   name: string;
   unit: string;
-  priceAtSale: number;
+  origPrice: number; // unit price as originally billed
+  price: number; // current (possibly edited) unit price
+  priceStr: string; // raw text in the price field
+  origQty: number; // quantity as originally billed
   quantity: number;
   maxQty: number; // how high we can go without driving stock negative
   deleted: boolean; // product no longer exists
@@ -49,7 +53,10 @@ export default function SaleDetailScreen() {
             productId: it.productId,
             name: it.name ?? 'Deleted product',
             unit: it.unit ?? '',
-            priceAtSale: it.priceAtSale,
+            origPrice: it.priceAtSale,
+            price: it.priceAtSale,
+            priceStr: String(it.priceAtSale),
+            origQty: it.quantity,
             quantity: it.quantity,
             // Can restore up to current stock plus what this sale already holds.
             maxQty: it.currentStock != null ? it.currentStock + it.quantity : it.quantity,
@@ -68,10 +75,20 @@ export default function SaleDetailScreen() {
       )
     );
 
-  const newTotal = lines.reduce((s, l) => s + l.priceAtSale * l.quantity, 0);
+  const setPrice = (productId: string, text: string) => {
+    // Allow only digits and a single decimal point.
+    const clean = text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+    setLines((prev) =>
+      prev.map((l) =>
+        l.productId === productId ? { ...l, priceStr: clean, price: parseFloat(clean) || 0 } : l
+      )
+    );
+  };
+
+  const newTotal = lines.reduce((s, l) => s + l.price * l.quantity, 0);
   const discount = sale ? Math.min(sale.discountAmount, newTotal) : 0;
   const newFinal = newTotal - discount;
-  const changed = sale ? newFinal !== sale.finalAmount : false;
+  const changed = lines.some((l) => l.quantity !== l.origQty || l.price !== l.origPrice);
 
   const save = async () => {
     if (!sale || !user) return;
@@ -82,7 +99,7 @@ export default function SaleDetailScreen() {
         lines.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
-          priceAtSale: l.priceAtSale,
+          priceAtSale: l.price,
         })),
         user.id
       );
@@ -160,18 +177,42 @@ export default function SaleDetailScreen() {
         <Text style={[styles.section, { color: colors.text }]}>Items</Text>
         <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 10 }}>
           Adjust quantity for returns or corrections. Set to 0 to remove an item.
+          {isOwner ? ' Tap a price to give extra discount or correct it.' : ''}
         </Text>
 
         {lines.map((l) => (
           <Card key={l.productId} style={[styles.itemRow, { opacity: l.quantity === 0 ? 0.5 : 1 }]}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.text, fontWeight: '700' }}>{l.name}</Text>
-              <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                {formatCurrency(l.priceAtSale)} each
-                {l.deleted ? ' · product deleted' : ` · up to ${l.maxQty} ${l.unit}`}
+              {isOwner ? (
+                <View style={styles.priceRow}>
+                  <Text style={{ color: colors.textMuted, fontSize: 14 }}>₹</Text>
+                  <TextInput
+                    value={l.priceStr}
+                    onChangeText={(t) => setPrice(l.productId, t)}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus
+                    placeholder="0"
+                    placeholderTextColor={colors.textMuted}
+                    style={[
+                      styles.priceInput,
+                      { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
+                    ]}
+                  />
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    each{l.price !== l.origPrice ? ` · was ${formatCurrency(l.origPrice)}` : ''}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                  {formatCurrency(l.price)} each
+                </Text>
+              )}
+              <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                {l.deleted ? 'product deleted' : `up to ${l.maxQty} ${l.unit}`}
               </Text>
               <Text style={{ color: colors.text, fontSize: 12, marginTop: 2 }}>
-                Line: {formatCurrency(l.priceAtSale * l.quantity)}
+                Line: {formatCurrency(l.price * l.quantity)}
               </Text>
             </View>
             <View style={styles.qtyControls}>
@@ -261,4 +302,14 @@ const styles = StyleSheet.create({
   section: { fontSize: 17, fontWeight: '800', marginBottom: 4 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  priceInput: {
+    minWidth: 64,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });
