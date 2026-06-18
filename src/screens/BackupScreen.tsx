@@ -27,6 +27,11 @@ export default function BackupScreen() {
       const json = await snapshotToJson();
       const date = new Date().toISOString().slice(0, 10);
       await shareTextFile(`quickbill-backup-${date}.json`, json);
+      // Proactively tell the user how to make the file restorable on Drive.
+      Alert.alert(
+        'Backup saved',
+        'IMPORTANT for restoring later:\n\nOpen Google Drive, find this backup, and tap ⭐ Star it (or move it into "My Drive"). Starred files appear when you tap Restore.\n\n(This is an Android + Drive limitation — automatic Drive sign-in, coming next, removes this step.)'
+      );
     } catch (e) {
       console.error(e);
       Alert.alert('Backup failed', 'Could not create the backup file.');
@@ -38,7 +43,7 @@ export default function BackupScreen() {
   const restore = () => {
     Alert.alert(
       'Restore from backup',
-      'This REPLACES all data on this device with the backup file. Continue?',
+      'This REPLACES all data on this device with the backup file.\n\nIn the next screen: open Google Drive → ⭐ Starred (star your backup in Drive first), or browse to wherever you saved it. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -92,14 +97,17 @@ export default function BackupScreen() {
           loading={busy === 'backup'}
           style={{ marginBottom: 12 }}
         />
-        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 22 }}>
-          Tip: in the share sheet, pick <Text style={{ fontWeight: '700' }}>Save to Drive</Text> to
-          keep the backup in your Google account.
+        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 22, lineHeight: 18 }}>
+          Tip: in the share sheet pick <Text style={{ fontWeight: '700' }}>Save to Drive</Text>. Then
+          open Google Drive and <Text style={{ fontWeight: '700' }}>⭐ star the file</Text> — that's how
+          you'll find it again when restoring.
         </Text>
 
         <Button title="Restore from backup" variant="outline" onPress={restore} loading={busy === 'restore'} />
-        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 8 }}>
-          Pick a backup file (e.g. from Google Drive). This replaces the data on this device.
+        <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 8, lineHeight: 18 }}>
+          In the file picker, open <Text style={{ fontWeight: '700' }}>Google Drive → Starred</Text> to
+          find your backup (or browse to wherever you saved it). Restoring replaces the data on this
+          device.
         </Text>
 
         <Card style={{ marginTop: 24, backgroundColor: colors.warning + '18', borderColor: colors.warning }}>
