@@ -20,7 +20,8 @@
     "android": {
       "package": "com.quickbill.pro",
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -34,6 +35,12 @@
     "scheme": "quickbillpro",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b7e9cfda-6290-4474-a5d8-4dadc8c1dc32"
+      }
     }
   }
 }
