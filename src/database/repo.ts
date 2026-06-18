@@ -979,6 +979,8 @@ export interface CreatePurchaseInput {
   userId: string;
   paid: boolean;
   note?: string;
+  /** YYYY-MM-DD the stock was received; defaults to today. */
+  purchaseDate?: string | null;
   lines: PurchaseLine[];
 }
 
@@ -992,12 +994,18 @@ export const createPurchase = async (input: CreatePurchaseInput): Promise<string
   const total = lines.reduce((s, l) => s + l.buyPrice * l.quantity, 0);
   const purchaseId = newId('pur');
   const now = new Date().toISOString();
+  // Owner may record stock-in for an earlier day; default to now. Noon avoids
+  // any date shift when the stored UTC time is read back in local time.
+  const when =
+    input.purchaseDate && /^\d{4}-\d{2}-\d{2}$/.test(input.purchaseDate)
+      ? new Date(input.purchaseDate + 'T12:00:00').toISOString()
+      : now;
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
       `INSERT INTO purchases (id, supplierId, userId, date, totalAmount, paid, note)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [purchaseId, input.supplierId ?? null, input.userId, now, total, input.paid ? 1 : 0, input.note ?? null]
+      [purchaseId, input.supplierId ?? null, input.userId, when, total, input.paid ? 1 : 0, input.note ?? null]
     );
 
     for (const l of lines) {
@@ -1027,7 +1035,7 @@ export const createPurchase = async (input: CreatePurchaseInput): Promise<string
           l.expiryDate ?? null,
           l.quantity,
           l.buyPrice,
-          now,
+          when,
         ]
       );
     }

@@ -47,6 +47,13 @@ const isValidExpiry = (s: string): boolean => {
   return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
 };
 
+const todayStr = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate()
+  ).padStart(2, '0')}`;
+};
+
 export default function StockInScreen() {
   const params = useLocalSearchParams<{ supplierId?: string }>();
   const { colors } = useTheme();
@@ -58,6 +65,7 @@ export default function StockInScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [paid, setPaid] = useState(true);
+  const [purchaseDate, setPurchaseDate] = useState(todayStr());
   const [busy, setBusy] = useState(false);
 
   const [supPickerOpen, setSupPickerOpen] = useState(false);
@@ -122,6 +130,10 @@ export default function StockInScreen() {
       dialog.alert('No items', 'Add at least one product with a quantity.');
       return;
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate) || !isValidExpiry(purchaseDate)) {
+      dialog.alert('Invalid date', 'Enter the stock-in date as YYYY-MM-DD.');
+      return;
+    }
     for (const l of lines) {
       if (!isValidExpiry(l.expiry)) {
         dialog.alert('Invalid expiry', `Check the expiry date for ${l.product.name} (use YYYY-MM-DD).`);
@@ -138,6 +150,7 @@ export default function StockInScreen() {
         supplierId: supplier?.id ?? null,
         userId: user.id,
         paid,
+        purchaseDate,
         lines: valid.map((l) => ({
           productId: l.product.id,
           quantity: parseInt(l.quantity, 10) || 0,
@@ -184,6 +197,17 @@ export default function StockInScreen() {
               </TouchableOpacity>
             )}
           </TouchableOpacity>
+
+          {/* Stock-in date */}
+          <Text style={[styles.label, { color: colors.textMuted, marginTop: 18 }]}>STOCK-IN DATE</Text>
+          <Field
+            value={purchaseDate}
+            onChangeText={(t) => setPurchaseDate(formatDateInput(t))}
+            keyboardType="numeric"
+            maxLength={10}
+            placeholder="YYYY-MM-DD"
+            containerStyle={{ marginBottom: 0 }}
+          />
 
           {/* Items */}
           <View style={styles.itemsHead}>
