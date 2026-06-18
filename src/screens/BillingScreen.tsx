@@ -9,6 +9,8 @@ import {
   Alert,
   Modal,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -342,6 +344,10 @@ export default function BillingScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <View style={{ flex: 1, padding: 16 }}>
         <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Ionicons name="search" size={18} color={colors.textMuted} />
@@ -568,6 +574,7 @@ export default function BillingScreen() {
           </View>
         )}
       </View>
+      </KeyboardAvoidingView>
 
       {/* Payment method picker */}
       <Modal visible={payOpen} transparent animationType="slide" onRequestClose={() => setPayOpen(false)}>

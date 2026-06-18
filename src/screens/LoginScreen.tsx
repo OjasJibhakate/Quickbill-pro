@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { isDriveConfigured, driveSignIn, getRecoveryEmail } from '@/utils/drivesync';
+import { isDriveConfigured, verifyGoogleAccount, driveSignOut, getRecoveryEmail } from '@/utils/drivesync';
 import { getUsers, saveUser } from '@/database/repo';
 import { User } from '@/types';
 
@@ -77,8 +77,9 @@ export default function LoginScreen() {
         );
         return;
       }
-      const email = await driveSignIn();
+      const email = await verifyGoogleAccount();
       if (email.toLowerCase() !== ownerEmail.toLowerCase()) {
+        await driveSignOut(); // don't leave a non-shop account connected
         dialog.alert(
           'Not the shop account',
           "This Google account isn't the one linked to this shop, so it can't reset PINs."

@@ -88,6 +88,24 @@ export async function driveSignIn(): Promise<string> {
   return res.data.user.email;
 }
 
+/**
+ * Forces the Google account picker (signs out first so a cached session can't
+ * silently authorize) and returns the chosen email WITHOUT saving it as the
+ * shop account. Used to verify identity for PIN recovery.
+ */
+export async function verifyGoogleAccount(): Promise<string> {
+  ensureConfigured();
+  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  try {
+    await GoogleSignin.signOut();
+  } catch {
+    /* ignore */
+  }
+  const res = await GoogleSignin.signIn();
+  if (!isSuccessResponse(res)) throw new Error('cancelled');
+  return res.data.user.email;
+}
+
 export async function driveSignOut(): Promise<void> {
   try {
     await GoogleSignin.signOut();

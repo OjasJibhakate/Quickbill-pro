@@ -250,8 +250,15 @@ export default function ProductsScreen() {
             <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
               <Field label="Name *" value={form.name} onChangeText={(t) => set('name', t)} placeholder="e.g. Parle-G Biscuit" />
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                {isOwner && (
-                  <Field label="Buy Price" containerStyle={{ flex: 1 }} value={form.buyPrice} onChangeText={(t) => set('buyPrice', t)} keyboardType="numeric" placeholder="0" />
+                {(isOwner || !form.id) && (
+                  <Field
+                    label={isOwner ? 'Buy Price' : 'Buy Price (optional)'}
+                    containerStyle={{ flex: 1 }}
+                    value={form.buyPrice}
+                    onChangeText={(t) => set('buyPrice', t)}
+                    keyboardType="numeric"
+                    placeholder={isOwner ? '0' : 'Owner can set'}
+                  />
                 )}
                 <Field label="Sell Price" containerStyle={{ flex: 1 }} value={form.sellPrice} onChangeText={(t) => set('sellPrice', t)} keyboardType="numeric" placeholder="0" />
               </View>
@@ -292,13 +299,15 @@ export default function ProductsScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Field
-                label="Max employee discount % (optional)"
-                value={form.maxDiscount}
-                onChangeText={(t) => set('maxDiscount', t)}
-                keyboardType="numeric"
-                placeholder="Blank = use employee's global limit"
-              />
+              {isOwner && (
+                <Field
+                  label="Max employee discount % (optional)"
+                  value={form.maxDiscount}
+                  onChangeText={(t) => set('maxDiscount', t)}
+                  keyboardType="numeric"
+                  placeholder="Blank = use employee's global limit"
+                />
+              )}
 
               <Field
                 label="Expiry Date"

@@ -10,13 +10,20 @@ import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
 import { getProducts, adjustStock, getTotalPayable } from '@/database/repo';
 import { Product } from '@/types';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatDate } from '@/utils/format';
 import { Card, EmptyState } from '@/components/ui';
 
-type FilterMode = 'all' | 'low';
+type FilterMode = 'all' | 'low' | 'expiring';
 
 const LOW_LIMIT_KEY = 'qbp_low_stock_limit';
 const DEFAULT_LOW_LIMIT = 5;
+
+const daysUntil = (iso: string): number => {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  const d = new Date(iso + 'T00:00:00');
+  return Math.round((d.getTime() - t.getTime()) / 86400000);
+};
 // Show the owner's low-stock warning at most once per app session.
 let lowStockNotified = false;
 
@@ -58,10 +65,14 @@ export default function InventoryScreen() {
 
   // "Low Stock" tab shows every product, sorted lowest-first so the most
   // urgent items are at the top.
-  const shown = useMemo(
-    () => (filter === 'low' ? [...products].sort((a, b) => a.stock - b.stock) : products),
-    [filter, products]
-  );
+  const shown = useMemo(() => {
+    if (filter === 'low') return [...products].sort((a, b) => a.stock - b.stock);
+    if (filter === 'expiring')
+      return products
+        .filter((p) => p.expiryDate)
+        .sort((a, b) => (a.expiryDate || '').localeCompare(b.expiryDate || ''));
+    return products;
+  }, [filter, products]);
 
   // One-time low-stock alert for the owner per app session.
   useEffect(() => {
@@ -146,26 +157,24 @@ export default function InventoryScreen() {
           </Card>
         </View>
 
-        <View style={styles.quickLinks}>
-          {[
-            ...(isOwner
-              ? ([
-                  { label: 'Stock In', icon: 'download-outline' as const, href: '/stock-in' as const },
-                  { label: 'Suppliers', icon: 'business-outline' as const, href: '/suppliers' as const },
-                ] as const)
-              : []),
-            { label: 'Expiring', icon: 'alert-circle-outline' as const, href: '/expiring' as const },
-          ].map((q) => (
-            <TouchableOpacity
-              key={q.label}
-              onPress={() => router.push(q.href)}
-              style={[styles.quickLink, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
-              <Ionicons name={q.icon} size={20} color={colors.primary} />
-              <Text style={{ color: colors.text, fontWeight: '600', fontSize: 12 }}>{q.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {isOwner && (
+          <View style={styles.quickLinks}>
+            {[
+              { label: 'Stock In', icon: 'download-outline' as const, href: '/stock-in' as const },
+              { label: 'Suppliers', icon: 'business-outline' as const, href: '/suppliers' as const },
+              { label: 'Expiring', icon: 'alert-circle-outline' as const, href: '/expiring' as const },
+            ].map((q) => (
+              <TouchableOpacity
+                key={q.label}
+                onPress={() => router.push(q.href)}
+                style={[styles.quickLink, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <Ionicons name={q.icon} size={20} color={colors.primary} />
+                <Text style={{ color: colors.text, fontWeight: '600', fontSize: 12 }}>{q.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {isOwner && (
           <View style={[styles.limitRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -185,7 +194,10 @@ export default function InventoryScreen() {
         )}
 
         <View style={styles.tabs}>
-          {(['all', 'low'] as FilterMode[]).map((m) => (
+          {(isOwner
+            ? (['all', 'low'] as FilterMode[])
+            : (['all', 'low', 'expiring'] as FilterMode[])
+          ).map((m) => (
             <TouchableOpacity
               key={m}
               onPress={() => setFilter(m)}
@@ -198,7 +210,7 @@ export default function InventoryScreen() {
               ]}
             >
               <Text style={{ color: filter === m ? '#FFF' : colors.text, fontWeight: '700' }}>
-                {m === 'all' ? 'All Items' : 'Low Stock'}
+                {m === 'all' ? 'All Items' : m === 'low' ? 'Low Stock' : 'Expiring'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -211,7 +223,17 @@ export default function InventoryScreen() {
           ListEmptyComponent={
             <EmptyState icon="🏷️" title="Nothing here" subtitle="Add products to start tracking stock." />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item }) => {
+            const exp = item.expiryDate ? daysUntil(item.expiryDate) : null;
+            const expColor =
+              exp === null
+                ? colors.textMuted
+                : exp < 0
+                ? colors.danger
+                : exp <= 7
+                ? colors.warning
+                : colors.info;
+            return (
             <Card style={{ marginBottom: 10 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
@@ -219,6 +241,11 @@ export default function InventoryScreen() {
                   <Text style={{ color: colors.textMuted, fontSize: 12 }}>
                     {item.category || 'Uncategorized'}
                   </Text>
+                  {filter === 'expiring' && item.expiryDate && (
+                    <Text style={{ color: expColor, fontSize: 12, marginTop: 2, fontWeight: '600' }}>
+                      {exp! < 0 ? 'Expired' : `Expires in ${exp}d`} · {formatDate(item.expiryDate)}
+                    </Text>
+                  )}
                 </View>
                 <Text
                   style={{
@@ -255,7 +282,8 @@ export default function InventoryScreen() {
                 </TouchableOpacity>
               </View>
             </Card>
-          )}
+            );
+          }}
         />
       </View>
     </SafeAreaView>
