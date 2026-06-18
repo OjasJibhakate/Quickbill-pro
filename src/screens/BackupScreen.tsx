@@ -72,13 +72,13 @@ export default function BackupScreen() {
 
   const cloudRestore = () => {
     dialog.alert(
-      'Restore from Drive',
-      'This REPLACES all data on this device with the copy in your Google Drive. Continue?',
+      'Pull from Drive',
+      'Pull the latest from your Google Drive and merge it into this device. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Restore',
-          style: 'destructive',
+          text: 'Pull',
+          style: 'default',
           onPress: async () => {
             setDriveBusy('restore');
             try {
@@ -183,9 +183,9 @@ export default function BackupScreen() {
                   </Text>
                 </View>
                 <Text style={{ color: colors.textMuted, lineHeight: 20, marginBottom: 14 }}>
-                  Your changes back up to Drive automatically (a hidden app folder — nothing to find
-                  or star). On another phone, sign in with the same Google account and tap Restore to
-                  load the latest.
+                  Live sync is on: your changes upload automatically and this phone pulls other
+                  devices' changes every few seconds — merged, never overwritten. Just sign in with
+                  the same Google account on each phone.
                 </Text>
                 <Button
                   title="Back up to Drive"
@@ -194,7 +194,7 @@ export default function BackupScreen() {
                   style={{ marginBottom: 10 }}
                 />
                 <Button
-                  title="Restore from Drive"
+                  title="Pull latest now"
                   variant="outline"
                   onPress={cloudRestore}
                   loading={driveBusy === 'restore'}

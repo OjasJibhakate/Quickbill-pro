@@ -15,7 +15,7 @@
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { snapshotToJson, importSnapshot } from '@/database/backup';
+import { snapshotToJson, mergeSnapshot } from '@/database/backup';
 
 const FILE_NAME = 'quickbill-snapshot.json';
 const APPDATA = 'appDataFolder';
@@ -130,6 +130,22 @@ async function findSnapshotId(token: string): Promise<string | null> {
   return data.files?.[0]?.id ?? null;
 }
 
+/** Cheap check of the snapshot's last-modified time (for live polling). */
+export async function getRemoteMeta(): Promise<{ id: string; modifiedTime: string } | null> {
+  if (!isDriveConfigured() || !GoogleSignin.getCurrentUser()) return null;
+  ensureConfigured();
+  const token = await getAccessToken();
+  const q = encodeURIComponent(`name='${FILE_NAME}'`);
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?spaces=${APPDATA}&q=${q}&fields=files(id,modifiedTime)`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { files?: { id: string; modifiedTime: string }[] };
+  const f = data.files?.[0];
+  return f ? { id: f.id, modifiedTime: f.modifiedTime } : null;
+}
+
 /** Upload the current DB snapshot to appDataFolder (create or overwrite). */
 export async function driveBackup(): Promise<void> {
   ensureConfigured();
@@ -183,6 +199,6 @@ export async function driveRestore(): Promise<{ found: boolean; rows: number }> 
   });
   if (!res.ok) throw new Error(`Drive download failed (${res.status})`);
   const json = await res.text();
-  const summary = await importSnapshot(json);
+  const summary = await mergeSnapshot(json);
   return { found: true, rows: summary.rows };
 }

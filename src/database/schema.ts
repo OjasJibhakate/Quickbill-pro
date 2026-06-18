@@ -149,6 +149,31 @@ export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       FOREIGN KEY(productId) REFERENCES products(id)
     );
 
+    CREATE TABLE IF NOT EXISTS stock_events (
+      id TEXT PRIMARY KEY,
+      productId TEXT NOT NULL,
+      delta REAL NOT NULL,
+      reason TEXT,
+      refId TEXT,
+      createdAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS supplier_payments (
+      id TEXT PRIMARY KEY,
+      supplierId TEXT NOT NULL,
+      amount REAL NOT NULL,
+      userId TEXT,
+      timestamp TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS tombstones (
+      id TEXT PRIMARY KEY,
+      tableName TEXT NOT NULL,
+      entityId TEXT NOT NULL,
+      deletedAt TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_stock_events_product ON stock_events(productId);
     CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
     CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
     CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date);
@@ -198,4 +223,32 @@ const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
   await addColumnIfMissing('users', 'canStockIn', 'INTEGER DEFAULT 0');
   await addColumnIfMissing('users', 'canSuppliers', 'INTEGER DEFAULT 0');
   await addColumnIfMissing('users', 'canEditBills', 'INTEGER DEFAULT 0');
+
+  // --- Live multi-device merge (Stage 3) ---
+  // updatedAt drives last-write-wins for definition tables during a merge.
+  await addColumnIfMissing('products', 'updatedAt', 'TEXT');
+  await addColumnIfMissing('customers', 'updatedAt', 'TEXT');
+  await addColumnIfMissing('suppliers', 'updatedAt', 'TEXT');
+  await addColumnIfMissing('users', 'updatedAt', 'TEXT');
+
+  const nowTs = new Date().toISOString();
+  for (const t of ['products', 'customers', 'suppliers', 'users']) {
+    await db.runAsync(`UPDATE ${t} SET updatedAt = ? WHERE updatedAt IS NULL`, [nowTs]);
+  }
+
+  // Seed the stock ledger once from each product's current stock, so stock
+  // becomes the sum of immutable +/- events (merge-safe across devices).
+  const prods = await db.getAllAsync<{ id: string; stock: number }>('SELECT id, stock FROM products');
+  for (const p of prods) {
+    const ev = await db.getFirstAsync<{ c: number }>(
+      'SELECT COUNT(*) AS c FROM stock_events WHERE productId = ?',
+      [p.id]
+    );
+    if ((ev?.c ?? 0) === 0) {
+      await db.runAsync(
+        'INSERT INTO stock_events (id, productId, delta, reason, createdAt) VALUES (?, ?, ?, ?, ?)',
+        [`evt-init-${p.id}`, p.id, p.stock, 'initial', nowTs]
+      );
+    }
+  }
 };

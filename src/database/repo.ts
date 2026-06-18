@@ -78,15 +78,15 @@ export const saveUser = async (u: SaveUserInput): Promise<string> => {
   const ceb = u.canEditBills ? 1 : 0;
   if (u.id) {
     await db.runAsync(
-      'UPDATE users SET name = ?, pin = ?, role = ?, maxDiscount = ?, canStockIn = ?, canSuppliers = ?, canEditBills = ? WHERE id = ?',
-      [u.name, u.pin, u.role, u.maxDiscount, csi, csu, ceb, u.id]
+      'UPDATE users SET name = ?, pin = ?, role = ?, maxDiscount = ?, canStockIn = ?, canSuppliers = ?, canEditBills = ?, updatedAt = ? WHERE id = ?',
+      [u.name, u.pin, u.role, u.maxDiscount, csi, csu, ceb, nowIso(), u.id]
     );
     return u.id;
   }
   const id = newId('user');
   await db.runAsync(
-    'INSERT INTO users (id, name, pin, role, maxDiscount, canStockIn, canSuppliers, canEditBills) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [id, u.name, u.pin, u.role, u.maxDiscount, csi, csu, ceb]
+    'INSERT INTO users (id, name, pin, role, maxDiscount, canStockIn, canSuppliers, canEditBills, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, u.name, u.pin, u.role, u.maxDiscount, csi, csu, ceb, nowIso()]
   );
   return id;
 };
@@ -102,6 +102,7 @@ export const deleteUser = async (id: string): Promise<void> => {
     );
     if ((owners?.c ?? 0) <= 1) throw new Error('You cannot delete the only owner account.');
   }
+  await recordTombstone(db, 'users', id);
   await db.runAsync('DELETE FROM users WHERE id = ?', [id]);
 };
 
@@ -131,15 +132,42 @@ export const getProductByBarcode = async (barcode: string): Promise<Product | nu
   return db.getFirstAsync<Product>('SELECT * FROM products WHERE barcode = ?', [barcode]);
 };
 
+const nowIso = (): string => new Date().toISOString();
+
+/** Appends an immutable stock change and updates the cached product.stock. */
+const addStockEvent = async (
+  db: DB,
+  productId: string,
+  delta: number,
+  reason: string,
+  refId: string | null = null
+): Promise<void> => {
+  if (!delta) return;
+  await db.runAsync(
+    'INSERT INTO stock_events (id, productId, delta, reason, refId, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
+    [newId('se'), productId, delta, reason, refId, nowIso()]
+  );
+  await db.runAsync('UPDATE products SET stock = stock + ? WHERE id = ?', [delta, productId]);
+};
+
+/** Records a delete so it propagates to other devices during a merge. */
+const recordTombstone = async (db: DB, tableName: string, entityId: string): Promise<void> => {
+  await db.runAsync(
+    'INSERT OR REPLACE INTO tombstones (id, tableName, entityId, deletedAt) VALUES (?, ?, ?, ?)',
+    [`tomb-${tableName}-${entityId}`, tableName, entityId, nowIso()]
+  );
+};
+
 /** Insert when id is empty, otherwise update. Returns the saved product id. */
 export const saveProduct = async (
   p: Omit<Product, 'id'> & { id?: string }
 ): Promise<string> => {
   const db = await getDB();
   if (p.id) {
+    const prev = await db.getFirstAsync<{ stock: number }>('SELECT stock FROM products WHERE id = ?', [p.id]);
     await db.runAsync(
       `UPDATE products SET name = ?, barcode = ?, buyPrice = ?, sellPrice = ?,
-         stock = ?, unit = ?, expiryDate = ?, category = ?, maxDiscount = ? WHERE id = ?`,
+         stock = ?, unit = ?, expiryDate = ?, category = ?, maxDiscount = ?, updatedAt = ? WHERE id = ?`,
       [
         p.name,
         p.barcode ?? null,
@@ -150,15 +178,25 @@ export const saveProduct = async (
         p.expiryDate ?? null,
         p.category ?? null,
         p.maxDiscount ?? null,
+        nowIso(),
         p.id,
       ]
     );
+    // Represent a manual stock change in the ledger so it merges correctly.
+    const delta = p.stock - (prev?.stock ?? 0);
+    if (delta) {
+      await db.runAsync(
+        'INSERT INTO stock_events (id, productId, delta, reason, createdAt) VALUES (?, ?, ?, ?, ?)',
+        [newId('se'), p.id, delta, 'edit', nowIso()]
+      );
+    }
     return p.id;
   }
   const id = newId('prod');
+  const ts = nowIso();
   await db.runAsync(
-    `INSERT INTO products (id, name, barcode, buyPrice, sellPrice, stock, unit, expiryDate, category, maxDiscount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (id, name, barcode, buyPrice, sellPrice, stock, unit, expiryDate, category, maxDiscount, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       p.name,
@@ -170,13 +208,21 @@ export const saveProduct = async (
       p.expiryDate ?? null,
       p.category ?? null,
       p.maxDiscount ?? null,
+      ts,
     ]
   );
+  if (p.stock) {
+    await db.runAsync(
+      'INSERT INTO stock_events (id, productId, delta, reason, createdAt) VALUES (?, ?, ?, ?, ?)',
+      [newId('se'), id, p.stock, 'initial', ts]
+    );
+  }
   return id;
 };
 
 export const deleteProduct = async (id: string): Promise<void> => {
   const db = await getDB();
+  await recordTombstone(db, 'products', id);
   await db.runAsync('DELETE FROM products WHERE id = ?', [id]);
 };
 
@@ -194,10 +240,13 @@ export const getCategories = async (): Promise<string[]> => {
 /** Add (positive) or remove (negative) stock for a single product. */
 export const adjustStock = async (id: string, delta: number): Promise<void> => {
   const db = await getDB();
-  await db.runAsync('UPDATE products SET stock = MAX(0, stock + ?) WHERE id = ?', [
-    delta,
-    id,
-  ]);
+  // Don't let a manual decrease push stock below zero.
+  let applied = delta;
+  if (delta < 0) {
+    const cur = await db.getFirstAsync<{ stock: number }>('SELECT stock FROM products WHERE id = ?', [id]);
+    applied = Math.max(delta, -(cur?.stock ?? 0));
+  }
+  await addStockEvent(db, id, applied, 'adjust');
 };
 
 export const getLowStockProducts = async (): Promise<Product[]> => {
@@ -236,22 +285,23 @@ export const saveCustomer = async (
   const db = await getDB();
   if (c.id) {
     await db.runAsync(
-      'UPDATE customers SET name = ?, phone = ?, creditLimit = ?, discountPct = ? WHERE id = ?',
-      [c.name, c.phone ?? null, c.creditLimit, c.discountPct, c.id]
+      'UPDATE customers SET name = ?, phone = ?, creditLimit = ?, discountPct = ?, updatedAt = ? WHERE id = ?',
+      [c.name, c.phone ?? null, c.creditLimit, c.discountPct, nowIso(), c.id]
     );
     return c.id;
   }
   const id = newId('cust');
   await db.runAsync(
-    `INSERT INTO customers (id, name, phone, creditLimit, currentDue, discountPct)
-       VALUES (?, ?, ?, ?, 0, ?)`,
-    [id, c.name, c.phone ?? null, c.creditLimit, c.discountPct]
+    `INSERT INTO customers (id, name, phone, creditLimit, currentDue, discountPct, updatedAt)
+       VALUES (?, ?, ?, ?, 0, ?, ?)`,
+    [id, c.name, c.phone ?? null, c.creditLimit, c.discountPct, nowIso()]
   );
   return id;
 };
 
 export const deleteCustomer = async (id: string): Promise<void> => {
   const db = await getDB();
+  await recordTombstone(db, 'customers', id);
   await db.runAsync('DELETE FROM credit_transactions WHERE customerId = ?', [id]);
   await db.runAsync('DELETE FROM customers WHERE id = ?', [id]);
 };
@@ -387,10 +437,7 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
            VALUES (?, ?, ?, ?, ?)`,
         [newId('si'), saleId, it.product.id, it.quantity, it.product.sellPrice]
       );
-      await db.runAsync('UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?', [
-        it.quantity,
-        it.product.id,
-      ]);
+      await addStockEvent(db, it.product.id, -it.quantity, 'sale', saleId);
       // Best-effort: draw down tracked batches first-expiry-first (FEFO).
       await deductBatchesFEFO(db, it.product.id, it.quantity);
     }
@@ -492,10 +539,7 @@ export const updateSale = async (
       [saleId]
     );
     for (const it of oldItems) {
-      await db.runAsync('UPDATE products SET stock = stock + ? WHERE id = ?', [
-        it.quantity,
-        it.productId,
-      ]);
+      await addStockEvent(db, it.productId, it.quantity, 'sale-edit-restore', saleId);
     }
     await db.runAsync('DELETE FROM sale_items WHERE saleId = ?', [saleId]);
 
@@ -506,10 +550,7 @@ export const updateSale = async (
            VALUES (?, ?, ?, ?, ?)`,
         [newId('si'), saleId, l.productId, l.quantity, l.priceAtSale]
       );
-      await db.runAsync('UPDATE products SET stock = MAX(0, stock - ?) WHERE id = ?', [
-        l.quantity,
-        l.productId,
-      ]);
+      await addStockEvent(db, l.productId, -l.quantity, 'sale-edit', saleId);
     }
 
     await db.runAsync(
@@ -524,6 +565,13 @@ export const updateSale = async (
         delta,
         sale.customerId,
       ]);
+      if (delta) {
+        await db.runAsync(
+          `INSERT INTO credit_transactions (id, customerId, saleId, amount, type, note, userId, timestamp)
+             VALUES (?, ?, ?, ?, 'adjust', NULL, ?, ?)`,
+          [newId('ct'), sale.customerId, saleId, delta, userId, nowIso()]
+        );
+      }
     }
   });
 
@@ -542,10 +590,7 @@ export const deleteSale = async (saleId: string, userId: string): Promise<void> 
       [saleId]
     );
     for (const it of oldItems) {
-      await db.runAsync('UPDATE products SET stock = stock + ? WHERE id = ?', [
-        it.quantity,
-        it.productId,
-      ]);
+      await addStockEvent(db, it.productId, it.quantity, 'sale-delete', saleId);
     }
     await db.runAsync('DELETE FROM sale_items WHERE saleId = ?', [saleId]);
 
@@ -554,7 +599,13 @@ export const deleteSale = async (saleId: string, userId: string): Promise<void> 
         sale.finalAmount,
         sale.customerId,
       ]);
+      await db.runAsync(
+        `INSERT INTO credit_transactions (id, customerId, saleId, amount, type, note, userId, timestamp)
+           VALUES (?, ?, ?, ?, 'adjust', NULL, ?, ?)`,
+        [newId('ct'), sale.customerId, saleId, -sale.finalAmount, userId, nowIso()]
+      );
     }
+    await recordTombstone(db, 'sales', saleId);
     await db.runAsync('DELETE FROM sales WHERE id = ?', [saleId]);
   });
 
@@ -931,22 +982,24 @@ export const saveSupplier = async (
   const db = await getDB();
   if (s.id) {
     await db.runAsync(
-      'UPDATE suppliers SET name = ?, phone = ?, contactPerson = ?, address = ?, notes = ? WHERE id = ?',
-      [s.name, s.phone ?? null, s.contactPerson ?? null, s.address ?? null, s.notes ?? null, s.id]
+      'UPDATE suppliers SET name = ?, phone = ?, contactPerson = ?, address = ?, notes = ?, updatedAt = ? WHERE id = ?',
+      [s.name, s.phone ?? null, s.contactPerson ?? null, s.address ?? null, s.notes ?? null, nowIso(), s.id]
     );
     return s.id;
   }
   const id = newId('sup');
+  const ts = nowIso();
   await db.runAsync(
-    `INSERT INTO suppliers (id, name, phone, contactPerson, address, notes, currentPayable, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
-    [id, s.name, s.phone ?? null, s.contactPerson ?? null, s.address ?? null, s.notes ?? null, new Date().toISOString()]
+    `INSERT INTO suppliers (id, name, phone, contactPerson, address, notes, currentPayable, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+    [id, s.name, s.phone ?? null, s.contactPerson ?? null, s.address ?? null, s.notes ?? null, ts, ts]
   );
   return id;
 };
 
 export const deleteSupplier = async (id: string): Promise<void> => {
   const db = await getDB();
+  await recordTombstone(db, 'suppliers', id);
   await db.runAsync('DELETE FROM suppliers WHERE id = ?', [id]);
 };
 
@@ -965,6 +1018,10 @@ export const recordSupplierPayment = async (
 ): Promise<void> => {
   if (amount <= 0) return;
   const db = await getDB();
+  await db.runAsync(
+    'INSERT INTO supplier_payments (id, supplierId, amount, userId, timestamp) VALUES (?, ?, ?, ?, ?)',
+    [newId('sp'), supplierId, amount, userId, nowIso()]
+  );
   await db.runAsync('UPDATE suppliers SET currentPayable = MAX(0, currentPayable - ?) WHERE id = ?', [
     amount,
     supplierId,
@@ -1020,13 +1077,18 @@ export const createPurchase = async (input: CreatePurchaseInput): Promise<string
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [newId('pi'), purchaseId, l.productId, l.quantity, l.buyPrice, l.batchNo ?? null, l.expiryDate ?? null]
       );
-      await db.runAsync('UPDATE products SET stock = stock + ?, buyPrice = ? WHERE id = ?', [
-        l.quantity,
+      await addStockEvent(db, l.productId, l.quantity, 'purchase', purchaseId);
+      await db.runAsync('UPDATE products SET buyPrice = ?, updatedAt = ? WHERE id = ?', [
         l.buyPrice,
+        nowIso(),
         l.productId,
       ]);
       if (l.expiryDate) {
-        await db.runAsync('UPDATE products SET expiryDate = ? WHERE id = ?', [l.expiryDate, l.productId]);
+        await db.runAsync('UPDATE products SET expiryDate = ?, updatedAt = ? WHERE id = ?', [
+          l.expiryDate,
+          nowIso(),
+          l.productId,
+        ]);
       }
       await db.runAsync(
         `INSERT INTO product_batches
