@@ -8,6 +8,7 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
@@ -97,7 +98,7 @@ export default function InvoiceScreen() {
       await shareHtmlAsPdf(html);
     } catch (e) {
       console.error(e);
-      Alert.alert('Error', 'Could not generate the invoice PDF.');
+      dialog.alert('Error', 'Could not generate the invoice PDF.');
     } finally {
       setBusy(false);
     }
@@ -116,7 +117,7 @@ export default function InvoiceScreen() {
       store.website.trim() ? store.website.trim() : '',
     ].filter(Boolean);
     Linking.openURL(`https://wa.me/${wa}?text=${encodeURIComponent(lines.join('\n'))}`).catch(() =>
-      Alert.alert('Could not open WhatsApp', 'Make sure WhatsApp is installed.')
+      dialog.alert('Could not open WhatsApp', 'Make sure WhatsApp is installed.')
     );
   };
 

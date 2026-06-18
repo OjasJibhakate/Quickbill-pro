@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -106,7 +107,7 @@ export default function SaleDetailScreen() {
       router.back();
     } catch (e) {
       console.error(e);
-      Alert.alert('Error', 'Could not update the sale.');
+      dialog.alert('Error', 'Could not update the sale.');
     } finally {
       setSaving(false);
     }
@@ -114,7 +115,7 @@ export default function SaleDetailScreen() {
 
   const confirmDelete = () => {
     if (!sale || !user) return;
-    Alert.alert(
+    dialog.alert(
       'Delete sale',
       'This removes the bill and returns all its items to stock. Continue?',
       [

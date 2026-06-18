@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -70,7 +71,7 @@ export default function UsersScreen() {
 
   const save = async () => {
     if (!form.name.trim()) {
-      Alert.alert('Missing name', 'Enter the staff name.');
+      dialog.alert('Missing name', 'Enter the staff name.');
       return;
     }
     setBusy(true);
@@ -87,7 +88,7 @@ export default function UsersScreen() {
       setModalOpen(false);
       reload();
     } catch (e: any) {
-      Alert.alert('Could not save', e?.message ?? 'Unknown error.');
+      dialog.alert('Could not save', e?.message ?? 'Unknown error.');
     } finally {
       setBusy(false);
     }
@@ -95,10 +96,10 @@ export default function UsersScreen() {
 
   const remove = (u: User) => {
     if (u.id === user?.id) {
-      Alert.alert('Not allowed', 'You cannot delete your own account.');
+      dialog.alert('Not allowed', 'You cannot delete your own account.');
       return;
     }
-    Alert.alert('Remove staff', `Remove ${u.name}?`, [
+    dialog.alert('Remove staff', `Remove ${u.name}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -108,7 +109,7 @@ export default function UsersScreen() {
             await deleteUser(u.id);
             reload();
           } catch (e: any) {
-            Alert.alert('Could not remove', e?.message ?? 'Unknown error.');
+            dialog.alert('Could not remove', e?.message ?? 'Unknown error.');
           }
         },
       },

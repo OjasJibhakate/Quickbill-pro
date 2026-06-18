@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,7 +30,7 @@ export default function LoginScreen() {
     if (ok) {
       router.replace('/(tabs)');
     } else {
-      Alert.alert('Invalid PIN', 'No account found for that PIN. Try again.');
+      dialog.alert('Invalid PIN', 'No account found for that PIN. Try again.');
       setPin('');
     }
   };

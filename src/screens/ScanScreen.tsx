@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Alert } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { useRouter } from 'expo-router';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { getProductByBarcode } from '@/database/repo';
@@ -18,7 +19,7 @@ export default function ScanScreen() {
   const handle = async (code: string) => {
     const product = await getProductByBarcode(code);
     if (product) {
-      Alert.alert(
+      dialog.alert(
         product.name,
         `${formatCurrency(product.sellPrice)} · ${product.stock} ${product.unit} in stock`,
         [
@@ -30,7 +31,7 @@ export default function ScanScreen() {
         ]
       );
     } else {
-      Alert.alert('No match', `No product has the barcode ${code}.`, [
+      dialog.alert('No match', `No product has the barcode ${code}.`, [
         { text: 'Scan again', onPress: scanAgain },
         { text: 'Add product', onPress: () => router.replace('/products') },
       ]);

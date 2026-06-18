@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,7 +62,7 @@ export default function SupplierDetailScreen() {
     if (!supplier || !user) return;
     const amount = parseFloat(payAmount);
     if (!amount || amount <= 0) {
-      Alert.alert('Enter amount', 'Enter how much you paid the supplier.');
+      dialog.alert('Enter amount', 'Enter how much you paid the supplier.');
       return;
     }
     setBusy(true);
@@ -90,7 +91,7 @@ export default function SupplierDetailScreen() {
   const submitEdit = async () => {
     if (!supplier) return;
     if (!editForm.name.trim()) {
-      Alert.alert('Missing name', 'Name cannot be empty.');
+      dialog.alert('Missing name', 'Name cannot be empty.');
       return;
     }
     setBusy(true);
@@ -112,7 +113,7 @@ export default function SupplierDetailScreen() {
 
   const confirmDelete = () => {
     if (!supplier) return;
-    Alert.alert('Delete supplier', `Remove ${supplier.name}? Past stock-ins stay in records.`, [
+    dialog.alert('Delete supplier', `Remove ${supplier.name}? Past stock-ins stay in records.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

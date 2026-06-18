@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { StoreProvider } from '@/context/StoreContext';
+import { DialogHost } from '@/components/Dialog';
 
 function RootStack() {
   const { isDark, colors } = useTheme();
@@ -40,6 +41,7 @@ function RootStack() {
         <Stack.Screen name="export" options={{ headerShown: true, title: 'Export to Excel' }} />
         <Stack.Screen name="backup" options={{ headerShown: true, title: 'Backup & Restore' }} />
       </Stack>
+      <DialogHost />
     </>
   );
 }

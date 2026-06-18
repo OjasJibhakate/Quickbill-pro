@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -137,7 +138,7 @@ export default function BillingScreen() {
 
   const resumeBill = (bill: HeldBill) => {
     if (cart.length > 0) {
-      Alert.alert('Cart not empty', 'Hold the current cart and open this one?', [
+      dialog.alert('Cart not empty', 'Hold the current cart and open this one?', [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Hold & Open',
@@ -188,14 +189,14 @@ export default function BillingScreen() {
 
   const addToCart = (product: Product) => {
     if (product.stock <= 0) {
-      Alert.alert('Out of stock', `${product.name} has no stock left.`);
+      dialog.alert('Out of stock', `${product.name} has no stock left.`);
       return;
     }
     setCart((prev) => {
       const existing = prev.find((c) => c.product.id === product.id);
       if (existing) {
         if (existing.quantity >= product.stock) {
-          Alert.alert('Limit reached', `Only ${product.stock} in stock.`);
+          dialog.alert('Limit reached', `Only ${product.stock} in stock.`);
           return prev;
         }
         return prev.map((c) =>
@@ -221,7 +222,7 @@ export default function BillingScreen() {
     if (found) {
       addToCart(found);
     } else {
-      Alert.alert('Not found', `No product has the barcode ${code}. Add it in Products first.`);
+      dialog.alert('Not found', `No product has the barcode ${code}. Add it in Products first.`);
     }
   };
 
@@ -232,7 +233,7 @@ export default function BillingScreen() {
           if (c.product.id !== id) return c;
           const q = c.quantity + delta;
           if (q > c.product.stock) {
-            Alert.alert('Limit reached', `Only ${c.product.stock} in stock.`);
+            dialog.alert('Limit reached', `Only ${c.product.stock} in stock.`);
             return c;
           }
           return { ...c, quantity: q };
@@ -266,7 +267,7 @@ export default function BillingScreen() {
 
   const quickAddCustomer = async () => {
     if (!newName.trim()) {
-      Alert.alert('Missing name', 'Enter a customer name.');
+      dialog.alert('Missing name', 'Enter a customer name.');
       return;
     }
     const id = await saveCustomer({
@@ -287,7 +288,7 @@ export default function BillingScreen() {
     if (!user) return;
     if (discountValue > maxDiscountAllowed + 0.001) {
       setPayOpen(false);
-      Alert.alert(
+      dialog.alert(
         'Discount too high',
         `You may only discount up to ${user.maxDiscount}% (${formatCurrency(
           maxDiscountAllowed
@@ -299,12 +300,12 @@ export default function BillingScreen() {
     if (method === 'credit') {
       if (!customer) {
         setPayOpen(false);
-        Alert.alert('Customer needed', 'Select a saved customer to put this bill on udhaar.');
+        dialog.alert('Customer needed', 'Select a saved customer to put this bill on udhaar.');
         return;
       }
       if (customer.creditLimit > 0 && customer.currentDue + total > customer.creditLimit) {
         setPayOpen(false);
-        Alert.alert(
+        dialog.alert(
           'Credit limit exceeded',
           `${customer.name} can owe up to ${formatCurrency(customer.creditLimit)}. Current due is ${formatCurrency(
             customer.currentDue
@@ -333,7 +334,7 @@ export default function BillingScreen() {
       setSuccess({ amount: charged, method, saleId });
     } catch (e) {
       console.error(e);
-      Alert.alert('Error', 'Could not complete the sale.');
+      dialog.alert('Error', 'Could not complete the sale.');
     } finally {
       setBusy(false);
     }

@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,7 +52,7 @@ export default function InventoryScreen() {
     const raw = drafts[p.id];
     const amount = parseInt(raw, 10);
     if (!amount || isNaN(amount)) {
-      Alert.alert('Enter a quantity', 'Type the number of units to add (or use - to remove).');
+      dialog.alert('Enter a quantity', 'Type the number of units to add (or use - to remove).');
       return;
     }
     await adjustStock(p.id, amount);

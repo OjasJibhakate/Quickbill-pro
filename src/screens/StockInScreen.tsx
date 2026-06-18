@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -118,17 +119,17 @@ export default function StockInScreen() {
     if (!user) return;
     const valid = lines.filter((l) => (parseInt(l.quantity, 10) || 0) > 0);
     if (valid.length === 0) {
-      Alert.alert('No items', 'Add at least one product with a quantity.');
+      dialog.alert('No items', 'Add at least one product with a quantity.');
       return;
     }
     for (const l of lines) {
       if (!isValidExpiry(l.expiry)) {
-        Alert.alert('Invalid expiry', `Check the expiry date for ${l.product.name} (use YYYY-MM-DD).`);
+        dialog.alert('Invalid expiry', `Check the expiry date for ${l.product.name} (use YYYY-MM-DD).`);
         return;
       }
     }
     if (!paid && !supplier) {
-      Alert.alert('Supplier needed', 'Select a supplier to record an on-credit purchase.');
+      dialog.alert('Supplier needed', 'Select a supplier to record an on-credit purchase.');
       return;
     }
     setBusy(true);
@@ -145,11 +146,11 @@ export default function StockInScreen() {
           expiryDate: l.expiry.trim() || null,
         })),
       });
-      Alert.alert('Stock added', `${formatCurrency(total)} of stock recorded.`);
+      dialog.alert('Stock added', `${formatCurrency(total)} of stock recorded.`);
       router.back();
     } catch (e) {
       console.error(e);
-      Alert.alert('Error', 'Could not record the stock-in.');
+      dialog.alert('Error', 'Could not record the stock-in.');
     } finally {
       setBusy(false);
     }

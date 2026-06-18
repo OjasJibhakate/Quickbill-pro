@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -80,7 +81,7 @@ export default function ExportScreen() {
       await exportXlsx(file, sheets);
     } catch (e) {
       console.error(e);
-      Alert.alert('Export failed', 'Could not create the Excel file.');
+      dialog.alert('Export failed', 'Could not create the Excel file.');
     } finally {
       setBusy(null);
     }

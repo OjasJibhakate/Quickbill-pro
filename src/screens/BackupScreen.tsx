@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -50,7 +51,7 @@ export default function BackupScreen() {
       setDriveEmail(email);
     } catch (e: any) {
       if (e?.message !== 'cancelled') {
-        Alert.alert('Sign-in failed', 'Could not sign in to Google. Please try again.');
+        dialog.alert('Sign-in failed', 'Could not sign in to Google. Please try again.');
       }
     } finally {
       setConnecting(false);
@@ -61,16 +62,16 @@ export default function BackupScreen() {
     setDriveBusy('backup');
     try {
       await driveBackup();
-      Alert.alert('Backed up to Drive', 'Your shop data is safely saved in your Google Drive.');
+      dialog.alert('Backed up to Drive', 'Your shop data is safely saved in your Google Drive.');
     } catch (e: any) {
-      Alert.alert('Backup failed', e?.message ?? 'Could not back up to Drive.');
+      dialog.alert('Backup failed', e?.message ?? 'Could not back up to Drive.');
     } finally {
       setDriveBusy(null);
     }
   };
 
   const cloudRestore = () => {
-    Alert.alert(
+    dialog.alert(
       'Restore from Drive',
       'This REPLACES all data on this device with the copy in your Google Drive. Continue?',
       [
@@ -83,18 +84,18 @@ export default function BackupScreen() {
             try {
               const r = await driveRestore();
               if (!r.found) {
-                Alert.alert(
+                dialog.alert(
                   'Nothing in Drive yet',
                   'No cloud backup found. Tap "Back up to Drive" first.'
                 );
               } else {
-                Alert.alert(
+                dialog.alert(
                   'Restored',
                   `Loaded ${r.rows} records from Drive. Please close and reopen the app so every screen refreshes.`
                 );
               }
             } catch (e: any) {
-              Alert.alert('Restore failed', e?.message ?? 'Could not restore from Drive.');
+              dialog.alert('Restore failed', e?.message ?? 'Could not restore from Drive.');
             } finally {
               setDriveBusy(null);
             }
@@ -116,20 +117,20 @@ export default function BackupScreen() {
       const json = await snapshotToJson();
       const date = new Date().toISOString().slice(0, 10);
       await shareTextFile(`quickbill-backup-${date}.json`, json);
-      Alert.alert(
+      dialog.alert(
         'Backup file saved',
         'You can store this file anywhere. Tip: the Google Drive sync above is easier — it needs no file to manage.'
       );
     } catch (e) {
       console.error(e);
-      Alert.alert('Backup failed', 'Could not create the backup file.');
+      dialog.alert('Backup failed', 'Could not create the backup file.');
     } finally {
       setBusy(null);
     }
   };
 
   const restore = () => {
-    Alert.alert(
+    dialog.alert(
       'Restore from a file',
       'This REPLACES all data on this device with the chosen backup file. Continue?',
       [
@@ -146,13 +147,13 @@ export default function BackupScreen() {
                 return;
               }
               const summary = await importSnapshot(json);
-              Alert.alert(
+              dialog.alert(
                 'Restored',
                 `Loaded ${summary.rows} records. Please close and reopen the app so every screen refreshes.`
               );
             } catch (e: any) {
               console.error(e);
-              Alert.alert('Restore failed', e?.message ?? 'That file could not be restored.');
+              dialog.alert('Restore failed', e?.message ?? 'That file could not be restored.');
             } finally {
               setBusy(null);
             }

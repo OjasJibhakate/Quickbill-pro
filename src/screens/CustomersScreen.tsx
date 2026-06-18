@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -56,7 +57,7 @@ export default function CustomersScreen() {
 
   const save = async () => {
     if (!form.name.trim()) {
-      Alert.alert('Missing name', 'Please enter the customer name.');
+      dialog.alert('Missing name', 'Please enter the customer name.');
       return;
     }
     setSaving(true);
@@ -72,7 +73,7 @@ export default function CustomersScreen() {
       reload();
     } catch (e) {
       console.error(e);
-      Alert.alert('Error', 'Could not save the customer.');
+      dialog.alert('Error', 'Could not save the customer.');
     } finally {
       setSaving(false);
     }

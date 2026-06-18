@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -58,7 +59,7 @@ export default function SuppliersScreen() {
 
   const save = async () => {
     if (!form.name.trim()) {
-      Alert.alert('Missing name', 'Enter the supplier name.');
+      dialog.alert('Missing name', 'Enter the supplier name.');
       return;
     }
     setSaving(true);
@@ -75,7 +76,7 @@ export default function SuppliersScreen() {
       reload();
     } catch (e) {
       console.error(e);
-      Alert.alert('Error', 'Could not save the supplier.');
+      dialog.alert('Error', 'Could not save the supplier.');
     } finally {
       setSaving(false);
     }

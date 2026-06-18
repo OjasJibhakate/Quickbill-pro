@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -114,11 +115,11 @@ export default function ProductsScreen() {
 
   const save = async () => {
     if (!form.name.trim()) {
-      Alert.alert('Missing name', 'Please enter a product name.');
+      dialog.alert('Missing name', 'Please enter a product name.');
       return;
     }
     if (expiryError) {
-      Alert.alert('Invalid expiry date', expiryError);
+      dialog.alert('Invalid expiry date', expiryError);
       return;
     }
     setSaving(true);
@@ -139,14 +140,14 @@ export default function ProductsScreen() {
       reload();
     } catch (e) {
       console.error(e);
-      Alert.alert('Error', 'Could not save the product.');
+      dialog.alert('Error', 'Could not save the product.');
     } finally {
       setSaving(false);
     }
   };
 
   const remove = (p: Product) => {
-    Alert.alert('Delete product', `Remove "${p.name}"?`, [
+    dialog.alert('Delete product', `Remove "${p.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

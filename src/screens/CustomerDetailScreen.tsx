@@ -11,6 +11,7 @@ import {
   Linking,
   ActivityIndicator,
 } from 'react-native';
+import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -71,7 +72,7 @@ export default function CustomerDetailScreen() {
     if (!customer || !user) return;
     const amount = parseFloat(payAmount);
     if (!amount || amount <= 0) {
-      Alert.alert('Enter amount', 'Enter how much the customer is paying.');
+      dialog.alert('Enter amount', 'Enter how much the customer is paying.');
       return;
     }
     setBusy(true);
@@ -99,7 +100,7 @@ export default function CustomerDetailScreen() {
   const submitEdit = async () => {
     if (!customer) return;
     if (!editForm.name.trim()) {
-      Alert.alert('Missing name', 'Name cannot be empty.');
+      dialog.alert('Missing name', 'Name cannot be empty.');
       return;
     }
     setBusy(true);
@@ -124,7 +125,7 @@ export default function CustomerDetailScreen() {
       customer.currentDue > 0
         ? `${customer.name} still owes ${formatCurrency(customer.currentDue)}. `
         : '';
-    Alert.alert('Delete customer', `${warn}This removes the customer and their ledger. Continue?`, [
+    dialog.alert('Delete customer', `${warn}This removes the customer and their ledger. Continue?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -139,7 +140,7 @@ export default function CustomerDetailScreen() {
 
   const sendReminder = () => {
     if (!customer?.phone) {
-      Alert.alert('No phone number', 'Add a phone number to send a reminder.');
+      dialog.alert('No phone number', 'Add a phone number to send a reminder.');
       return;
     }
     const digits = customer.phone.replace(/\D/g, '');
@@ -149,7 +150,7 @@ export default function CustomerDetailScreen() {
     )}. Kindly clear it at your convenience. Thank you!`;
     const url = `https://wa.me/${wa}?text=${encodeURIComponent(msg)}`;
     Linking.openURL(url).catch(() =>
-      Alert.alert('Could not open WhatsApp', 'Make sure WhatsApp is installed.')
+      dialog.alert('Could not open WhatsApp', 'Make sure WhatsApp is installed.')
     );
   };
 
