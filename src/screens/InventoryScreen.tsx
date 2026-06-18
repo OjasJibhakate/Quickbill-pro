@@ -1,26 +1,24 @@
-import React, { useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-} from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput } from 'react-native';
 import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
-import { getProducts, adjustStock } from '@/database/repo';
+import { getProducts, adjustStock, getTotalPayable } from '@/database/repo';
 import { Product } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { Card, EmptyState } from '@/components/ui';
 
 type FilterMode = 'all' | 'low';
+
+const LOW_LIMIT_KEY = 'qbp_low_stock_limit';
+const DEFAULT_LOW_LIMIT = 5;
+// Show the owner's low-stock warning at most once per app session.
+let lowStockNotified = false;
 
 export default function InventoryScreen() {
   const { colors } = useTheme();
@@ -29,9 +27,23 @@ export default function InventoryScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState<FilterMode>('all');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [supplierDue, setSupplierDue] = useState(0);
+  const [lowLimit, setLowLimit] = useState(DEFAULT_LOW_LIMIT);
+  const [limitDraft, setLimitDraft] = useState(String(DEFAULT_LOW_LIMIT));
+
+  useEffect(() => {
+    AsyncStorage.getItem(LOW_LIMIT_KEY).then((raw) => {
+      const n = parseInt(raw ?? '', 10);
+      if (!isNaN(n) && n > 0) {
+        setLowLimit(n);
+        setLimitDraft(String(n));
+      }
+    });
+  }, []);
 
   const reload = useReload(async () => {
     setProducts(await getProducts());
+    if (isOwner) setSupplierDue(await getTotalPayable());
   });
 
   const stockValue = useMemo(
@@ -39,9 +51,40 @@ export default function InventoryScreen() {
     [products]
   );
   const totalUnits = useMemo(() => products.reduce((s, p) => s + p.stock, 0), [products]);
-  const lowCount = useMemo(() => products.filter((p) => p.stock <= 5).length, [products]);
+  const lowCount = useMemo(
+    () => products.filter((p) => p.stock <= lowLimit).length,
+    [products, lowLimit]
+  );
 
-  const shown = filter === 'low' ? products.filter((p) => p.stock <= 5) : products;
+  // "Low Stock" tab shows every product, sorted lowest-first so the most
+  // urgent items are at the top.
+  const shown = useMemo(
+    () => (filter === 'low' ? [...products].sort((a, b) => a.stock - b.stock) : products),
+    [filter, products]
+  );
+
+  // One-time low-stock alert for the owner per app session.
+  useEffect(() => {
+    if (isOwner && !lowStockNotified && products.length > 0 && lowCount > 0) {
+      lowStockNotified = true;
+      dialog.alert(
+        'Low stock',
+        `${lowCount} item(s) are at or below ${lowLimit} ${
+          lowCount === 1 ? 'unit' : 'units'
+        }. Open the "Low Stock" tab to review and restock.`
+      );
+    }
+  }, [isOwner, products, lowCount, lowLimit]);
+
+  const onLimitChange = (t: string) => {
+    const clean = t.replace(/[^0-9]/g, '');
+    setLimitDraft(clean);
+    const n = parseInt(clean, 10);
+    if (!isNaN(n) && n > 0) {
+      setLowLimit(n);
+      AsyncStorage.setItem(LOW_LIMIT_KEY, String(n)).catch(() => {});
+    }
+  };
 
   const quickAdjust = async (p: Product, delta: number) => {
     await adjustStock(p.id, delta);
@@ -73,10 +116,33 @@ export default function InventoryScreen() {
             </Text>
           </Card>
           <Card style={{ flex: 1, gap: 4 }}>
-            <Text style={{ color: colors.textMuted, fontSize: 13 }}>Low Stock</Text>
-            <Text style={{ color: lowCount ? colors.danger : colors.success, fontSize: 18, fontWeight: '800' }}>
-              {lowCount} item(s)
-            </Text>
+            {isOwner ? (
+              <>
+                <Text style={{ color: colors.textMuted, fontSize: 13 }}>Supplier Dues</Text>
+                <Text
+                  style={{
+                    color: supplierDue > 0 ? colors.danger : colors.success,
+                    fontSize: 18,
+                    fontWeight: '800',
+                  }}
+                >
+                  {formatCurrency(supplierDue)}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={{ color: colors.textMuted, fontSize: 13 }}>Low Stock</Text>
+                <Text
+                  style={{
+                    color: lowCount ? colors.danger : colors.success,
+                    fontSize: 18,
+                    fontWeight: '800',
+                  }}
+                >
+                  {lowCount} item(s)
+                </Text>
+              </>
+            )}
           </Card>
         </View>
 
@@ -100,6 +166,23 @@ export default function InventoryScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {isOwner && (
+          <View style={[styles.limitRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="notifications-outline" size={16} color={colors.textMuted} />
+            <Text style={{ color: colors.textMuted, fontSize: 13, flex: 1 }}>
+              Warn me when stock is at/below
+            </Text>
+            <TextInput
+              value={limitDraft}
+              onChangeText={onLimitChange}
+              keyboardType="numeric"
+              maxLength={4}
+              style={[styles.limitInput, { color: colors.text, borderColor: colors.border }]}
+            />
+            <Text style={{ color: colors.textMuted, fontSize: 13 }}>units</Text>
+          </View>
+        )}
 
         <View style={styles.tabs}>
           {(['all', 'low'] as FilterMode[]).map((m) => (
@@ -139,7 +222,7 @@ export default function InventoryScreen() {
                 </View>
                 <Text
                   style={{
-                    color: item.stock <= 5 ? colors.danger : colors.success,
+                    color: item.stock <= lowLimit ? colors.danger : colors.success,
                     fontWeight: '800',
                     fontSize: 16,
                   }}
@@ -188,6 +271,25 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
+  },
+  limitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  limitInput: {
+    minWidth: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    textAlign: 'center',
+    fontWeight: '700',
   },
   tabs: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
