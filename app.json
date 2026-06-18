@@ -41,7 +41,8 @@
           "backgroundColor": "#000000"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "@react-native-google-signin/google-signin"
     ],
     "scheme": "quickbillpro",
     "experiments": {
@@ -49,6 +50,7 @@
     },
     "extra": {
       "router": {},
+      "googleWebClientId": "REPLACE_WITH_YOUR_WEB_CLIENT_ID.apps.googleusercontent.com",
       "eas": {
         "projectId": "b7e9cfda-6290-4474-a5d8-4dadc8c1dc32"
       }
