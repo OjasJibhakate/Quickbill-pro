@@ -126,10 +126,10 @@ export default function SupplierDetailScreen() {
     ]);
   };
 
-  if (!isOwner) {
+  if (!isOwner && !user?.canSuppliers) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <EmptyState icon="🔒" title="Owner only" subtitle="Only the owner manages suppliers." />
+        <EmptyState icon="🔒" title="No access" subtitle="Ask the owner for supplier access." />
       </View>
     );
   }

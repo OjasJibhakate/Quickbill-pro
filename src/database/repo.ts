@@ -57,6 +57,9 @@ export interface SaveUserInput {
   pin: string;
   role: Role;
   maxDiscount: number;
+  canStockIn?: boolean;
+  canSuppliers?: boolean;
+  canEditBills?: boolean;
 }
 
 /** Creates or updates a staff account. Enforces a 4-digit, unique PIN. */
@@ -70,17 +73,20 @@ export const saveUser = async (u: SaveUserInput): Promise<string> => {
   );
   if (clash) throw new Error('That PIN is already used by another account.');
 
+  const csi = u.canStockIn ? 1 : 0;
+  const csu = u.canSuppliers ? 1 : 0;
+  const ceb = u.canEditBills ? 1 : 0;
   if (u.id) {
     await db.runAsync(
-      'UPDATE users SET name = ?, pin = ?, role = ?, maxDiscount = ? WHERE id = ?',
-      [u.name, u.pin, u.role, u.maxDiscount, u.id]
+      'UPDATE users SET name = ?, pin = ?, role = ?, maxDiscount = ?, canStockIn = ?, canSuppliers = ?, canEditBills = ? WHERE id = ?',
+      [u.name, u.pin, u.role, u.maxDiscount, csi, csu, ceb, u.id]
     );
     return u.id;
   }
   const id = newId('user');
   await db.runAsync(
-    'INSERT INTO users (id, name, pin, role, maxDiscount) VALUES (?, ?, ?, ?, ?)',
-    [id, u.name, u.pin, u.role, u.maxDiscount]
+    'INSERT INTO users (id, name, pin, role, maxDiscount, canStockIn, canSuppliers, canEditBills) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, u.name, u.pin, u.role, u.maxDiscount, csi, csu, ceb]
   );
   return id;
 };

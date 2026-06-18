@@ -8,6 +8,7 @@ import {
   Modal,
   ScrollView,
   Alert,
+  Switch,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -27,9 +28,20 @@ interface FormState {
   role: Role;
   maxDiscount: string;
   pin: string;
+  canStockIn: boolean;
+  canSuppliers: boolean;
+  canEditBills: boolean;
 }
 
-const newEmployee: FormState = { name: '', role: 'employee', maxDiscount: '10', pin: '' };
+const newEmployee: FormState = {
+  name: '',
+  role: 'employee',
+  maxDiscount: '10',
+  pin: '',
+  canStockIn: false,
+  canSuppliers: false,
+  canEditBills: false,
+};
 
 export default function UsersScreen() {
   const { colors } = useTheme();
@@ -65,6 +77,9 @@ export default function UsersScreen() {
       role: u.role,
       maxDiscount: String(u.maxDiscount),
       pin: u.pin,
+      canStockIn: !!u.canStockIn,
+      canSuppliers: !!u.canSuppliers,
+      canEditBills: !!u.canEditBills,
     });
     setModalOpen(true);
   };
@@ -83,6 +98,9 @@ export default function UsersScreen() {
         // Owners are effectively unlimited; store 100 for them.
         maxDiscount: form.role === 'owner' ? 100 : parseFloat(form.maxDiscount) || 0,
         pin: form.pin.trim(),
+        canStockIn: form.canStockIn,
+        canSuppliers: form.canSuppliers,
+        canEditBills: form.canEditBills,
       });
       if (form.id === user?.id) await refreshUser();
       setModalOpen(false);
@@ -213,6 +231,30 @@ export default function UsersScreen() {
                 />
               )}
 
+              {form.role === 'employee' && (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={[styles.label, { color: colors.textMuted, marginTop: 0 }]}>
+                    Permissions
+                  </Text>
+                  {(
+                    [
+                      ['canStockIn', 'Record stock-in'],
+                      ['canSuppliers', 'Manage suppliers'],
+                      ['canEditBills', 'Edit past bills'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <View key={key} style={[styles.permRow, { borderColor: colors.border }]}>
+                      <Text style={{ color: colors.text, flex: 1 }}>{label}</Text>
+                      <Switch
+                        value={form[key]}
+                        onValueChange={(v) => setForm((f) => ({ ...f, [key]: v }))}
+                        trackColor={{ true: colors.primary }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              )}
+
               <Field
                 label="4-digit PIN"
                 value={form.pin}
@@ -243,6 +285,7 @@ const styles = StyleSheet.create({
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   pinPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 14 },
+  permRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1 },
   roleToggle: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   roleBtn: { flex: 1, paddingVertical: 12, alignItems: 'center' },
   fab: {

@@ -169,10 +169,10 @@ export default function StockInScreen() {
     }
   };
 
-  if (!isOwner) {
+  if (!isOwner && !user?.canStockIn) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-        <EmptyState icon="🔒" title="Owner only" subtitle="Only the owner can record stock-in." />
+        <EmptyState icon="🔒" title="No access" subtitle="Ask the owner for stock-in access." />
       </View>
     );
   }

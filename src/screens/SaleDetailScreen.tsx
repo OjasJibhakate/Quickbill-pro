@@ -38,6 +38,7 @@ export default function SaleDetailScreen() {
   const { colors } = useTheme();
   const { user, isOwner } = useAuth();
   const router = useRouter();
+  const canEdit = isOwner || !!user?.canEditBills;
 
   const [sale, setSale] = useState<Sale | null>(null);
   const [lines, setLines] = useState<EditLine[]>([]);
@@ -177,8 +178,9 @@ export default function SaleDetailScreen() {
 
         <Text style={[styles.section, { color: colors.text }]}>Items</Text>
         <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 10 }}>
-          Adjust quantity for returns or corrections. Set to 0 to remove an item. Tap a
-          price to give extra discount or correct it.
+          {canEdit
+            ? 'Adjust quantity for returns or corrections. Set to 0 to remove an item. Tap a price to give extra discount or correct it.'
+            : 'Bill details (read-only). Ask the owner for edit access.'}
         </Text>
 
         {lines.map((l) => (
@@ -187,18 +189,22 @@ export default function SaleDetailScreen() {
               <Text style={{ color: colors.text, fontWeight: '700' }}>{l.name}</Text>
               <View style={styles.priceRow}>
                 <Text style={{ color: colors.textMuted, fontSize: 14 }}>₹</Text>
-                <TextInput
-                  value={l.priceStr}
-                  onChangeText={(t) => setPrice(l.productId, t)}
-                  keyboardType="decimal-pad"
-                  selectTextOnFocus
-                  placeholder="0"
-                  placeholderTextColor={colors.textMuted}
-                  style={[
-                    styles.priceInput,
-                    { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
-                  ]}
-                />
+                {canEdit ? (
+                  <TextInput
+                    value={l.priceStr}
+                    onChangeText={(t) => setPrice(l.productId, t)}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus
+                    placeholder="0"
+                    placeholderTextColor={colors.textMuted}
+                    style={[
+                      styles.priceInput,
+                      { color: colors.text, borderColor: colors.border, backgroundColor: colors.background },
+                    ]}
+                  />
+                ) : (
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>{l.price}</Text>
+                )}
                 <Text style={{ color: colors.textMuted, fontSize: 12 }}>
                   each{l.price !== l.origPrice ? ` · was ${formatCurrency(l.origPrice)}` : ''}
                 </Text>
@@ -211,22 +217,28 @@ export default function SaleDetailScreen() {
               </Text>
             </View>
             <View style={styles.qtyControls}>
-              <TouchableOpacity onPress={() => setQty(l.productId, l.quantity - 1)}>
-                <Ionicons name="remove-circle-outline" size={28} color={colors.danger} />
-              </TouchableOpacity>
-              <Text style={{ color: colors.text, fontWeight: '800', minWidth: 26, textAlign: 'center' }}>
-                {l.quantity}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setQty(l.productId, l.quantity + 1)}
-                disabled={l.quantity >= l.maxQty}
-              >
-                <Ionicons
-                  name="add-circle-outline"
-                  size={28}
-                  color={l.quantity >= l.maxQty ? colors.textMuted : colors.success}
-                />
-              </TouchableOpacity>
+              {canEdit ? (
+                <>
+                  <TouchableOpacity onPress={() => setQty(l.productId, l.quantity - 1)}>
+                    <Ionicons name="remove-circle-outline" size={28} color={colors.danger} />
+                  </TouchableOpacity>
+                  <Text style={{ color: colors.text, fontWeight: '800', minWidth: 26, textAlign: 'center' }}>
+                    {l.quantity}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setQty(l.productId, l.quantity + 1)}
+                    disabled={l.quantity >= l.maxQty}
+                  >
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={28}
+                      color={l.quantity >= l.maxQty ? colors.textMuted : colors.success}
+                    />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>×{l.quantity}</Text>
+              )}
             </View>
           </Card>
         ))}
@@ -247,13 +259,15 @@ export default function SaleDetailScreen() {
           )}
         </Card>
 
-        <Button
-          title={changed ? 'Save Changes' : 'No Changes'}
-          onPress={save}
-          loading={saving}
-          disabled={!changed}
-          style={{ marginTop: 16 }}
-        />
+        {canEdit && (
+          <Button
+            title={changed ? 'Save Changes' : 'No Changes'}
+            onPress={save}
+            loading={saving}
+            disabled={!changed}
+            style={{ marginTop: 16 }}
+          />
+        )}
 
         <Button
           title="Share Invoice"

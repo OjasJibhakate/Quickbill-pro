@@ -7,6 +7,10 @@ export interface User {
   pin: string;
   role: Role;
   maxDiscount: number; // Percentage an employee is allowed to apply
+  // Owner-granted permissions for employees (0/1). Owners implicitly have all.
+  canStockIn?: number;
+  canSuppliers?: number;
+  canEditBills?: number;
 }
 
 export interface Product {

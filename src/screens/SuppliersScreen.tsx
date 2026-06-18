@@ -36,7 +36,7 @@ const emptyForm: FormState = { name: '', phone: '', contactPerson: '', address: 
 
 export default function SuppliersScreen() {
   const { colors } = useTheme();
-  const { isOwner } = useAuth();
+  const { user, isOwner } = useAuth();
   const router = useRouter();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [payable, setPayable] = useState(0);
@@ -82,10 +82,10 @@ export default function SuppliersScreen() {
     }
   };
 
-  if (!isOwner) {
+  if (!isOwner && !user?.canSuppliers) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-        <EmptyState icon="🔒" title="Owner only" subtitle="Only the owner manages suppliers." />
+        <EmptyState icon="🔒" title="No access" subtitle="Ask the owner for supplier access." />
       </View>
     );
   }

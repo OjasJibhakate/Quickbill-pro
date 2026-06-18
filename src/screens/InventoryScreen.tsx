@@ -29,7 +29,7 @@ let lowStockNotified = false;
 
 export default function InventoryScreen() {
   const { colors } = useTheme();
-  const { isOwner } = useAuth();
+  const { user, isOwner } = useAuth();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [filter, setFilter] = useState<FilterMode>('all');
@@ -114,6 +114,14 @@ export default function InventoryScreen() {
     reload();
   };
 
+  const canStockIn = isOwner || !!user?.canStockIn;
+  const canSuppliers = isOwner || !!user?.canSuppliers;
+  const quickLinks = [
+    ...(canStockIn ? ([{ label: 'Stock In', icon: 'download-outline', href: '/stock-in' }] as const) : []),
+    ...(canSuppliers ? ([{ label: 'Suppliers', icon: 'business-outline', href: '/suppliers' }] as const) : []),
+    ...(isOwner ? ([{ label: 'Expiring', icon: 'alert-circle-outline', href: '/expiring' }] as const) : []),
+  ];
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1, padding: 16 }}>
@@ -157,13 +165,9 @@ export default function InventoryScreen() {
           </Card>
         </View>
 
-        {isOwner && (
+        {quickLinks.length > 0 && (
           <View style={styles.quickLinks}>
-            {[
-              { label: 'Stock In', icon: 'download-outline' as const, href: '/stock-in' as const },
-              { label: 'Suppliers', icon: 'business-outline' as const, href: '/suppliers' as const },
-              { label: 'Expiring', icon: 'alert-circle-outline' as const, href: '/expiring' as const },
-            ].map((q) => (
+            {quickLinks.map((q) => (
               <TouchableOpacity
                 key={q.label}
                 onPress={() => router.push(q.href)}
