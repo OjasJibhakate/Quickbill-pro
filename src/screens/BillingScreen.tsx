@@ -489,7 +489,7 @@ export default function BillingScreen() {
                 {formatCurrency(total)}
               </Text>
             </View>
-            {/* Saved customer link (udhaar / customer discount) */}
+            {/* Saved customer chip, or: add name first (frequent), then credit/udhaar link */}
             {customer ? (
               <View style={[styles.custChip, { borderColor: colors.border }]}>
                 <Ionicons name="person-circle" size={28} color={colors.primary} />
@@ -505,27 +505,18 @@ export default function BillingScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.customerToggle} onPress={() => setPickerOpen(true)}>
-                <Ionicons name="person-add-outline" size={18} color={colors.primary} />
-                <Text style={{ color: colors.primary, fontWeight: '600' }}>
-                  Add customer (udhaar / discount)
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Walk-in invoice details, only when no saved customer is linked */}
-            {!customer && (
               <>
+                {/* Add name / phone for the invoice — most frequent, so shown first */}
                 <TouchableOpacity onPress={() => setShowCustomer((v) => !v)} style={styles.customerToggle}>
                   <Ionicons
                     name={showCustomer ? 'chevron-down' : 'chevron-forward'}
-                    size={16}
-                    color={colors.textMuted}
+                    size={18}
+                    color={colors.primary}
                   />
-                  <Text style={{ color: colors.textMuted, fontWeight: '600' }}>
+                  <Text style={{ color: colors.primary, fontWeight: '600' }}>
                     {custName || custPhone
                       ? `Walk-in: ${custName || custPhone}`
-                      : 'Or add name / phone for invoice (optional)'}
+                      : 'Add name / phone for invoice (optional)'}
                   </Text>
                 </TouchableOpacity>
                 {showCustomer && (
@@ -554,6 +545,17 @@ export default function BillingScreen() {
                     />
                   </View>
                 )}
+
+                {/* Then link a saved customer for credit / udhaar / loan */}
+                <TouchableOpacity
+                  style={[styles.customerToggle, { marginTop: 4 }]}
+                  onPress={() => setPickerOpen(true)}
+                >
+                  <Ionicons name="person-add-outline" size={18} color={colors.primary} />
+                  <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                    Add customer (credit / udhaar / loan)
+                  </Text>
+                </TouchableOpacity>
               </>
             )}
 

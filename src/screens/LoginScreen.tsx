@@ -95,10 +95,6 @@ export default function LoginScreen() {
           );
         })}
       </View>
-
-      <View style={[styles.hint, { borderColor: colors.border }]}>
-        <Text style={{ color: colors.textMuted }}>Owner PIN: 1234 · Cashier PIN: 0000</Text>
-      </View>
     </SafeAreaView>
   );
 }
@@ -136,5 +132,4 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   keyText: { fontSize: 26, fontWeight: '600' },
-  hint: { marginTop: 32, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1 },
 });
