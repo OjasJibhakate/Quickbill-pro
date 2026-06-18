@@ -183,8 +183,9 @@ export default function BackupScreen() {
                   </Text>
                 </View>
                 <Text style={{ color: colors.textMuted, lineHeight: 20, marginBottom: 14 }}>
-                  Saved privately in your Drive (a hidden app folder — nothing to find or star). On
-                  another phone, sign in with the same Google account and tap Restore.
+                  Your changes back up to Drive automatically (a hidden app folder — nothing to find
+                  or star). On another phone, sign in with the same Google account and tap Restore to
+                  load the latest.
                 </Text>
                 <Button
                   title="Back up to Drive"

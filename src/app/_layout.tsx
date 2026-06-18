@@ -1,4 +1,5 @@
 import 'react-native-gesture-handler';
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -7,9 +8,15 @@ import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { StoreProvider } from '@/context/StoreContext';
 import { DialogHost } from '@/components/Dialog';
+import { initAutoSync } from '@/utils/autosync';
 
 function RootStack() {
   const { isDark, colors } = useTheme();
+
+  // Back up to Google Drive automatically after every change (push-only).
+  useEffect(() => {
+    initAutoSync();
+  }, []);
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
