@@ -4,8 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +15,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { isDriveConfigured, driveSignIn, getRecoveryEmail } from '@/utils/drivesync';
+import { getUsers, saveUser } from '@/database/repo';
+import { User } from '@/types';
 
 const PIN_LENGTH = 4;
 
@@ -22,6 +27,14 @@ export default function LoginScreen() {
   const { login } = useAuth();
   const router = useRouter();
   const { colors } = useTheme();
+
+  // PIN recovery (Reset via Google).
+  const [recovering, setRecovering] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [selected, setSelected] = useState<User | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [savingPin, setSavingPin] = useState(false);
 
   const submit = async (value: string) => {
     setBusy(true);
@@ -46,6 +59,70 @@ export default function LoginScreen() {
 
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'];
 
+  const forgotPin = async () => {
+    if (!isDriveConfigured()) {
+      dialog.alert(
+        'Recovery needs Google',
+        'PIN recovery uses your shop Google account. Ask the owner to set up Google Drive first (Settings → Backup & Restore).'
+      );
+      return;
+    }
+    setRecovering(true);
+    try {
+      const ownerEmail = await getRecoveryEmail();
+      if (!ownerEmail) {
+        dialog.alert(
+          'Not set up yet',
+          'Connect Google Drive once while logged in (Settings → Backup & Restore) to enable PIN recovery on this phone.'
+        );
+        return;
+      }
+      const email = await driveSignIn();
+      if (email.toLowerCase() !== ownerEmail.toLowerCase()) {
+        dialog.alert(
+          'Not the shop account',
+          "This Google account isn't the one linked to this shop, so it can't reset PINs."
+        );
+        return;
+      }
+      const list = await getUsers();
+      setUsers(list);
+      setSelected(null);
+      setNewPin('');
+      setResetOpen(true);
+    } catch (e: any) {
+      if (e?.message !== 'cancelled') {
+        dialog.alert('Could not verify', 'Google sign-in failed. Please try again.');
+      }
+    } finally {
+      setRecovering(false);
+    }
+  };
+
+  const savePin = async () => {
+    if (!selected) return;
+    if (!/^\d{4}$/.test(newPin)) {
+      dialog.alert('4 digits', 'PIN must be exactly 4 digits.');
+      return;
+    }
+    setSavingPin(true);
+    try {
+      await saveUser({
+        id: selected.id,
+        name: selected.name,
+        role: selected.role,
+        maxDiscount: selected.maxDiscount,
+        pin: newPin,
+      });
+      setResetOpen(false);
+      dialog.alert('PIN updated', `${selected.name} can now log in with ${newPin}.`);
+    } catch (e: any) {
+      dialog.alert('Could not update', e?.message ?? 'Try a different PIN.');
+    } finally {
+      setSavingPin(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
@@ -53,9 +130,7 @@ export default function LoginScreen() {
           <Ionicons name="receipt-outline" size={36} color="#FFF" />
         </View>
         <Text style={[styles.title, { color: colors.text }]}>QuickBill Pro</Text>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Enter your PIN to continue
-        </Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>Enter your PIN to continue</Text>
       </View>
 
       <View style={styles.dots}>
@@ -73,7 +148,11 @@ export default function LoginScreen() {
         ))}
       </View>
 
-      {busy ? <ActivityIndicator color={colors.primary} style={{ height: 24 }} /> : <View style={{ height: 24 }} />}
+      {busy ? (
+        <ActivityIndicator color={colors.primary} style={{ height: 24 }} />
+      ) : (
+        <View style={{ height: 24 }} />
+      )}
 
       <View style={styles.pad}>
         {keys.map((k, i) => {
@@ -96,6 +175,94 @@ export default function LoginScreen() {
           );
         })}
       </View>
+
+      {isDriveConfigured() && (
+        <TouchableOpacity onPress={forgotPin} disabled={recovering} style={styles.forgot}>
+          {recovering ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>Forgot PIN?</Text>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Reset via Google */}
+      <Modal
+        visible={resetOpen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setResetOpen(false)}
+      >
+        <View style={styles.scrim}>
+          <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.sheetHead}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: '800' }}>
+                {selected ? `New PIN · ${selected.name}` : 'Reset a PIN'}
+              </Text>
+              <TouchableOpacity onPress={() => setResetOpen(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {selected ? (
+              <View style={{ gap: 12 }}>
+                <TextInput
+                  value={newPin}
+                  onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  placeholder="4-digit PIN"
+                  placeholderTextColor={colors.textMuted}
+                  autoFocus
+                  style={[styles.pinInput, { color: colors.text, borderColor: colors.border }]}
+                />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity
+                    onPress={() => setSelected(null)}
+                    style={[styles.sheetBtn, { borderColor: colors.border, borderWidth: 1 }]}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>Back</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={savePin}
+                    disabled={savingPin}
+                    style={[styles.sheetBtn, { backgroundColor: colors.primary }]}
+                  >
+                    <Text style={{ color: '#FFF', fontWeight: '700' }}>
+                      {savingPin ? 'Saving…' : 'Save PIN'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 320 }}>
+                <Text style={{ color: colors.textMuted, marginBottom: 10 }}>
+                  Verified as the shop account. Pick whose PIN to reset:
+                </Text>
+                {users.map((u) => (
+                  <TouchableOpacity
+                    key={u.id}
+                    onPress={() => {
+                      setSelected(u);
+                      setNewPin('');
+                    }}
+                    style={[styles.userRow, { borderColor: colors.border }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: '700' }}>{u.name}</Text>
+                      <Text style={{ color: colors.textMuted, fontSize: 12, textTransform: 'capitalize' }}>
+                        {u.role}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -133,4 +300,33 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   keyText: { fontSize: 26, fontWeight: '600' },
+  forgot: { marginTop: 28, paddingVertical: 8, paddingHorizontal: 16, minHeight: 36, justifyContent: 'center' },
+  scrim: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 28,
+  },
+  sheet: { width: '100%', maxWidth: 380, borderRadius: 16, borderWidth: 1, padding: 18 },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  pinInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 20,
+    letterSpacing: 6,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  sheetBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 10 },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
 });

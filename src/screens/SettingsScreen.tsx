@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert } from 'react-native';
 import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -11,7 +11,7 @@ import { Card, Button, Field } from '@/components/ui';
 
 export default function SettingsScreen() {
   const { colors, themeMode, setThemeMode } = useTheme();
-  const { user, logout, isOwner } = useAuth();
+  const { user, logout, isOwner, requirePin, setRequirePin } = useAuth();
   const { store, setStoreName, updateStore } = useStore();
   const router = useRouter();
 
@@ -27,6 +27,21 @@ export default function SettingsScreen() {
         },
       },
     ]);
+  };
+
+  const onTogglePin = (value: boolean) => {
+    if (!value) {
+      dialog.alert(
+        'Turn off PIN?',
+        'Anyone who opens the app will get full owner access without a PIN. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Turn off', style: 'destructive', onPress: () => setRequirePin(false) },
+        ]
+      );
+    } else {
+      setRequirePin(true);
+    }
   };
 
   const modes: { key: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -147,6 +162,30 @@ export default function SettingsScreen() {
           </>
         )}
 
+        {isOwner && (
+          <>
+            <Text style={[styles.section, { color: colors.textMuted }]}>SECURITY</Text>
+            <Card>
+              <View style={styles.toggleRow}>
+                <Ionicons name="lock-closed-outline" size={20} color={colors.text} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: '600' }}>Require PIN to open app</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    {requirePin
+                      ? 'Staff sign in with a PIN. Forgot it? Reset via Google on the login screen.'
+                      : 'App opens straight in as owner — no PIN screen.'}
+                  </Text>
+                </View>
+                <Switch
+                  value={requirePin}
+                  onValueChange={onTogglePin}
+                  trackColor={{ true: colors.primary }}
+                />
+              </View>
+            </Card>
+          </>
+        )}
+
         <Text style={[styles.section, { color: colors.textMuted }]}>APPEARANCE</Text>
         <Card>
           {modes.map((m, idx) => (
@@ -173,7 +212,9 @@ export default function SettingsScreen() {
           <Row label="Version" value="1.0.0" colors={colors} border={false} />
         </Card>
 
-        <Button title="Log Out" variant="danger" onPress={handleLogout} style={{ marginTop: 24 }} />
+        {requirePin && (
+          <Button title="Log Out" variant="danger" onPress={handleLogout} style={{ marginTop: 24 }} />
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -207,6 +248,7 @@ const styles = StyleSheet.create({
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   section: { fontSize: 12, fontWeight: '700', marginTop: 24, marginBottom: 8, letterSpacing: 1 },
   themeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14 },
 });

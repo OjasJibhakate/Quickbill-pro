@@ -14,11 +14,30 @@
  */
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { snapshotToJson, importSnapshot } from '@/database/backup';
 
 const FILE_NAME = 'quickbill-snapshot.json';
 const APPDATA = 'appDataFolder';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const OWNER_EMAIL_KEY = 'qbp_owner_google_email';
+
+async function rememberEmail(email: string) {
+  try {
+    await AsyncStorage.setItem(OWNER_EMAIL_KEY, email);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The Google account linked to this shop, used to authorize PIN recovery. */
+export async function getRecoveryEmail(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(OWNER_EMAIL_KEY);
+  } catch {
+    return null;
+  }
+}
 
 const webClientId = ((Constants.expoConfig?.extra as any)?.googleWebClientId as string) || '';
 
@@ -44,9 +63,16 @@ export async function driveRestoreSession(): Promise<string | null> {
   ensureConfigured();
   try {
     const current = GoogleSignin.getCurrentUser();
-    if (current) return current.user.email;
+    if (current) {
+      await rememberEmail(current.user.email);
+      return current.user.email;
+    }
     const res = await GoogleSignin.signInSilently();
-    return res.type === 'success' ? res.data.user.email : null;
+    if (res.type === 'success') {
+      await rememberEmail(res.data.user.email);
+      return res.data.user.email;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -58,6 +84,7 @@ export async function driveSignIn(): Promise<string> {
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   const res = await GoogleSignin.signIn();
   if (!isSuccessResponse(res)) throw new Error('cancelled');
+  await rememberEmail(res.data.user.email);
   return res.data.user.email;
 }
 
