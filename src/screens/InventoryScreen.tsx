@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput } from 'r
 import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -31,8 +31,14 @@ export default function InventoryScreen() {
   const { colors } = useTheme();
   const { user, isOwner } = useAuth();
   const router = useRouter();
+  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
   const [products, setProducts] = useState<Product[]>([]);
-  const [filter, setFilter] = useState<FilterMode>('all');
+  const [filter, setFilter] = useState<FilterMode>(filterParam === 'low' ? 'low' : 'all');
+
+  // Open the requested tab when arriving from a Home shortcut.
+  useEffect(() => {
+    if (filterParam === 'low') setFilter('low');
+  }, [filterParam]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [supplierDue, setSupplierDue] = useState(0);
   const [lowLimit, setLowLimit] = useState(DEFAULT_LOW_LIMIT);

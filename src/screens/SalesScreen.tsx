@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useReload } from '@/hooks/useReload';
@@ -12,10 +12,17 @@ import { Card, EmptyState } from '@/components/ui';
 export default function SalesScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const navigation = useNavigation();
+  const { filter } = useLocalSearchParams<{ filter?: string }>();
+  const todayOnly = filter === 'today';
   const [sales, setSales] = useState<RecentSale[]>([]);
 
+  useEffect(() => {
+    navigation.setOptions({ title: todayOnly ? "Today's Orders" : 'Sales History' });
+  }, [navigation, todayOnly]);
+
   useReload(async () => {
-    setSales(await getSales(200));
+    setSales(await getSales(200, todayOnly));
   });
 
   return (
@@ -25,7 +32,11 @@ export default function SalesScreen() {
         keyExtractor={(s) => s.id}
         contentContainerStyle={{ padding: 16 }}
         ListEmptyComponent={
-          <EmptyState icon="🧾" title="No sales yet" subtitle="Bills you create will appear here." />
+          <EmptyState
+            icon="🧾"
+            title={todayOnly ? 'No orders today' : 'No sales yet'}
+            subtitle={todayOnly ? "Today's bills will appear here." : 'Bills you create will appear here.'}
+          />
         }
         renderItem={({ item }) => (
           <TouchableOpacity

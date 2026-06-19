@@ -54,18 +54,36 @@ export default function HomeScreen() {
     value,
     color,
     icon,
+    onPress,
   }: {
     label: string;
     value: string;
     color: string;
     icon: keyof typeof Ionicons.glyphMap;
-  }) => (
-    <Card style={styles.statCard}>
-      <Ionicons name={icon} size={22} color={color} />
-      <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: colors.textMuted }]}>{label}</Text>
-    </Card>
-  );
+    onPress?: () => void;
+  }) => {
+    const content = (
+      <>
+        <Ionicons name={icon} size={22} color={color} />
+        <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+        <Text style={[styles.statLabel, { color: colors.textMuted }]}>{label}</Text>
+        {onPress && (
+          <Ionicons
+            name="chevron-forward"
+            size={14}
+            color={colors.textMuted}
+            style={styles.statChevron}
+          />
+        )}
+      </>
+    );
+    if (!onPress) return <Card style={styles.statCard}>{content}</Card>;
+    return (
+      <TouchableOpacity style={styles.statCard} activeOpacity={0.7} onPress={onPress}>
+        <Card style={styles.statCardInner}>{content}</Card>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView edges={[]} style={{ flex: 1, backgroundColor: colors.background }}>
@@ -88,9 +106,27 @@ export default function HomeScreen() {
 
         <View style={styles.statsGrid}>
           <StatCard label="Today's Sales" value={formatCurrency(stats.todaySales)} color={colors.success} icon="cash-outline" />
-          <StatCard label="Today's Orders" value={String(stats.todayOrders)} color={colors.primary} icon="receipt-outline" />
-          <StatCard label="Low Stock" value={String(stats.lowStock)} color={colors.danger} icon="alert-circle-outline" />
-          <StatCard label="Products" value={String(stats.totalProducts)} color={colors.info} icon="cube-outline" />
+          <StatCard
+            label="Today's Orders"
+            value={String(stats.todayOrders)}
+            color={colors.primary}
+            icon="receipt-outline"
+            onPress={() => router.push({ pathname: '/sales', params: { filter: 'today' } })}
+          />
+          <StatCard
+            label="Low Stock"
+            value={String(stats.lowStock)}
+            color={colors.danger}
+            icon="alert-circle-outline"
+            onPress={() => router.push({ pathname: '/inventory', params: { filter: 'low' } })}
+          />
+          <StatCard
+            label="Products"
+            value={String(stats.totalProducts)}
+            color={colors.info}
+            icon="cube-outline"
+            onPress={() => router.push('/products')}
+          />
         </View>
 
         <Text style={[styles.section, { color: colors.text }]}>Quick Actions</Text>
@@ -242,6 +278,8 @@ const styles = StyleSheet.create({
   roleBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   statCard: { width: '47%', flexGrow: 1, gap: 6 },
+  statCardInner: { flex: 1, gap: 6 },
+  statChevron: { position: 'absolute', top: 12, right: 12 },
   statValue: { fontSize: 20, fontWeight: '800' },
   statLabel: { fontSize: 13 },
   section: { fontSize: 17, fontWeight: '800', marginTop: 22, marginBottom: 12 },

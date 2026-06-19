@@ -41,6 +41,14 @@ const styles = StyleSheet.create({
   },
   logoText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12.5, letterSpacing: 0.8 },
   brandName: { fontSize: 18, fontWeight: '800', letterSpacing: 0.3, maxWidth: 210 },
+  scanBtn: {
+    marginRight: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 
 export default function TabNavigator() {
@@ -79,9 +87,9 @@ export default function TabNavigator() {
             <TouchableOpacity
               onPress={() => router.push('/scan')}
               hitSlop={8}
-              style={{ marginRight: 16 }}
+              style={[styles.scanBtn, { backgroundColor: colors.primary + '1A' }]}
             >
-              <Ionicons name="scan-outline" size={24} color={colors.primary} />
+              <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
           ),
         }}

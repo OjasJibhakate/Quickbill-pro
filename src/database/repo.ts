@@ -473,8 +473,18 @@ export const getRecentSales = async (limit = 10): Promise<RecentSale[]> => {
   );
 };
 
-/** Full sales history (most recent first). */
-export const getSales = async (limit = 100): Promise<RecentSale[]> => getRecentSales(limit);
+/** Full sales history (most recent first). Pass todayOnly for just today's bills. */
+export const getSales = async (limit = 100, todayOnly = false): Promise<RecentSale[]> => {
+  if (!todayOnly) return getRecentSales(limit);
+  const db = await getDB();
+  return db.getAllAsync<RecentSale>(
+    `SELECT s.*, (SELECT COALESCE(SUM(quantity), 0) FROM sale_items WHERE saleId = s.id) AS itemCount
+       FROM sales s
+       WHERE date(s.date, 'localtime') = date('now', 'localtime')
+       ORDER BY s.date DESC LIMIT ?`,
+    [limit]
+  );
+};
 
 export interface SaleItemDetail {
   id: string;
