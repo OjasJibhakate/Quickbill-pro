@@ -7,9 +7,11 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "web:export": "expo export -p web",
+    "web:export": "expo export -p web --clear",
     "web:serve": "node scripts/serve-web.js",
-    "desktop": "expo export -p web && node scripts/serve-web.js"
+    "desktop": "expo export -p web --clear && node scripts/serve-web.js",
+    "web:restaurant": "cross-env APP_FLAVOR=restaurant expo start --web --clear",
+    "desktop:restaurant": "cross-env APP_FLAVOR=restaurant expo export -p web --clear && node scripts/serve-web.js"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -55,6 +57,7 @@
     "@types/react": "~19.1.10",
     "@types/uuid": "^9.0.0",
     "babel-preset-expo": "~54.0.10",
+    "cross-env": "^10.1.0",
     "typescript": "~5.9.2"
   },
   "private": true

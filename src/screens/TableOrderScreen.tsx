@@ -18,8 +18,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
+import { useBarcodeWedge } from '@/hooks/useBarcodeWedge';
 import {
   getProducts,
+  getProductByBarcode,
   getTable,
   getTableOrder,
   addToTableOrder,
@@ -85,6 +87,15 @@ export default function TableOrderScreen() {
     await addToTableOrder(tableId, p);
     reload();
   };
+
+  // Desktop USB barcode scanner (web): a scan adds the item to this table.
+  useBarcodeWedge(async (code: string) => {
+    const p = products.find((x) => x.barcode === code) ?? (await getProductByBarcode(code));
+    if (p) {
+      await addToTableOrder(tableId, p);
+      reload();
+    }
+  });
   const changeQty = async (line: TableOrderLine, delta: number) => {
     await setTableOrderQty(line.id, line.quantity + delta);
     reload();

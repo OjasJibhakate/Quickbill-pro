@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useReload } from '@/hooks/useReload';
+import { useBarcodeWedge } from '@/hooks/useBarcodeWedge';
 import {
   getProducts,
   checkout,
@@ -227,6 +228,15 @@ export default function BillingScreen() {
       dialog.alert('Not found', `No product has the barcode ${code}. Add it in Products first.`);
     }
   };
+
+  // Desktop USB barcode scanner (web): a scan adds the product directly.
+  useBarcodeWedge(async (code: string) => {
+    const found = products.find((p) => p.barcode === code) ?? (await getProductByBarcode(code));
+    if (found) {
+      addToCart(found);
+      setSearch('');
+    }
+  });
 
   const changeQty = (id: string, delta: number) => {
     setCart((prev) =>
