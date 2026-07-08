@@ -18,13 +18,27 @@ const APPEND_TABLES = [
 ] as const;
 
 /** Definition tables: merged last-write-wins on updatedAt. */
-const DEFINITION_TABLES = ['users', 'products', 'customers', 'suppliers'] as const;
+const DEFINITION_TABLES = ['users', 'products', 'customers', 'suppliers', 'dining_tables'] as const;
 
 /** Tables a tombstone is allowed to delete from (guards the dynamic DELETE). */
-const TOMBSTONE_TABLES = new Set(['users', 'products', 'customers', 'suppliers', 'sales']);
+const TOMBSTONE_TABLES = new Set([
+  'users',
+  'products',
+  'customers',
+  'suppliers',
+  'sales',
+  'dining_tables',
+]);
+
+/**
+ * Backed up & fully restored (from a file), but deliberately NOT live-merged:
+ * a table's open order is transient device-local state, so two phones can't
+ * stomp each other's in-progress tables.
+ */
+const EXPORT_ONLY_TABLES = ['table_orders'] as const;
 
 /** Every table that holds shop data (used by export + full restore). */
-const SYNC_TABLES = [...DEFINITION_TABLES, ...APPEND_TABLES] as const;
+const SYNC_TABLES = [...DEFINITION_TABLES, ...APPEND_TABLES, ...EXPORT_ONLY_TABLES] as const;
 
 export interface Snapshot {
   app: 'quickbill-pro';
@@ -175,6 +189,9 @@ export const mergeSnapshot = async (json: string): Promise<RestoreSummary> => {
         await db.runAsync(`DELETE FROM ${tomb.tableName} WHERE id = ?`, [tomb.entityId]);
         if (tomb.tableName === 'sales') {
           await db.runAsync('DELETE FROM sale_items WHERE saleId = ?', [tomb.entityId]);
+        }
+        if (tomb.tableName === 'dining_tables') {
+          await db.runAsync('DELETE FROM table_orders WHERE tableId = ?', [tomb.entityId]);
         }
       }
 

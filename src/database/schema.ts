@@ -173,6 +173,27 @@ export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
       deletedAt TEXT NOT NULL
     );
 
+    -- Restaurant mode: the dining tables an order can be opened against.
+    CREATE TABLE IF NOT EXISTS dining_tables (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sortOrder INTEGER DEFAULT 0,
+      createdAt TEXT,
+      updatedAt TEXT
+    );
+
+    -- Restaurant mode: the current (unsettled) line items on each table.
+    -- Cleared when the table is settled into a normal sale.
+    CREATE TABLE IF NOT EXISTS table_orders (
+      id TEXT PRIMARY KEY,
+      tableId TEXT NOT NULL,
+      productId TEXT NOT NULL,
+      name TEXT NOT NULL,
+      price REAL NOT NULL DEFAULT 0,
+      quantity INTEGER NOT NULL DEFAULT 1,
+      updatedAt TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_stock_events_product ON stock_events(productId);
     CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
     CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
@@ -181,6 +202,7 @@ export const initializeDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
     CREATE INDEX IF NOT EXISTS idx_batches_product ON product_batches(productId);
     CREATE INDEX IF NOT EXISTS idx_batches_expiry ON product_batches(expiryDate);
     CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase ON purchase_items(purchaseId);
+    CREATE INDEX IF NOT EXISTS idx_table_orders_table ON table_orders(tableId);
 
     -- Default Owner Account (PIN: 1234)
     INSERT OR IGNORE INTO users (id, name, pin, role, maxDiscount)

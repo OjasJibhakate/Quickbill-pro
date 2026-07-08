@@ -139,6 +139,29 @@ export interface CartItem {
   quantity: number;
 }
 
+/** Restaurant mode: a dining table an order can be opened against. */
+export interface DiningTable {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
+/** Restaurant mode: a saved line on a table's open (unsettled) order. */
+export interface TableOrderLine {
+  id: string;
+  tableId: string;
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+/** A dining table plus a summary of its open order (for the tables grid). */
+export interface TableWithOrder extends DiningTable {
+  itemCount: number;
+  orderTotal: number;
+}
+
 /** Aggregated numbers shown on the Home dashboard. */
 export interface HomeStats {
   todaySales: number;

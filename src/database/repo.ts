@@ -15,6 +15,9 @@ import {
   Supplier,
   ProductBatch,
   Purchase,
+  DiningTable,
+  TableOrderLine,
+  TableWithOrder,
 } from '@/types';
 
 const LOW_STOCK_THRESHOLD = 5;
@@ -457,6 +460,186 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
   });
 
   await logActivity(input.userId, 'SALE', `Sale ${saleId} for ${final}`);
+  return saleId;
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Restaurant mode — dining tables & their open orders                       */
+/* -------------------------------------------------------------------------- */
+
+export const getTables = async (): Promise<DiningTable[]> => {
+  const db = await getDB();
+  return db.getAllAsync<DiningTable>(
+    'SELECT id, name, sortOrder FROM dining_tables ORDER BY sortOrder ASC, name ASC'
+  );
+};
+
+/** Tables plus a summary (item count + running total) of each open order. */
+export const getTablesWithOrders = async (): Promise<TableWithOrder[]> => {
+  const db = await getDB();
+  return db.getAllAsync<TableWithOrder>(
+    `SELECT t.id, t.name, t.sortOrder,
+            COALESCE(SUM(o.quantity), 0) AS itemCount,
+            COALESCE(SUM(o.quantity * o.price), 0) AS orderTotal
+       FROM dining_tables t
+       LEFT JOIN table_orders o ON o.tableId = t.id
+       GROUP BY t.id, t.name, t.sortOrder
+       ORDER BY t.sortOrder ASC, t.name ASC`
+  );
+};
+
+export const getTable = async (id: string): Promise<DiningTable | null> => {
+  const db = await getDB();
+  return (
+    (await db.getFirstAsync<DiningTable>(
+      'SELECT id, name, sortOrder FROM dining_tables WHERE id = ?',
+      [id]
+    )) ?? null
+  );
+};
+
+export const addTable = async (name: string): Promise<string> => {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ m: number }>(
+    'SELECT COALESCE(MAX(sortOrder), 0) AS m FROM dining_tables'
+  );
+  const id = newId('tbl');
+  const now = nowIso();
+  await db.runAsync(
+    'INSERT INTO dining_tables (id, name, sortOrder, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+    [id, name.trim(), (row?.m ?? 0) + 1, now, now]
+  );
+  return id;
+};
+
+export const renameTable = async (id: string, name: string): Promise<void> => {
+  const db = await getDB();
+  await db.runAsync('UPDATE dining_tables SET name = ?, updatedAt = ? WHERE id = ?', [
+    name.trim(),
+    nowIso(),
+    id,
+  ]);
+};
+
+export const deleteTable = async (id: string): Promise<void> => {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM table_orders WHERE tableId = ?', [id]);
+  await db.runAsync('DELETE FROM dining_tables WHERE id = ?', [id]);
+  await recordTombstone(db, 'dining_tables', id);
+};
+
+/** Creates a few default tables the first time restaurant mode is used. */
+export const seedDefaultTables = async (count = 4): Promise<void> => {
+  const db = await getDB();
+  const existing = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM dining_tables'
+  );
+  if ((existing?.c ?? 0) > 0) return;
+  const now = nowIso();
+  for (let i = 1; i <= count; i++) {
+    await db.runAsync(
+      'INSERT INTO dining_tables (id, name, sortOrder, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+      [newId('tbl'), `Table ${i}`, i, now, now]
+    );
+  }
+};
+
+export const getTableOrder = async (tableId: string): Promise<TableOrderLine[]> => {
+  const db = await getDB();
+  return db.getAllAsync<TableOrderLine>(
+    'SELECT id, tableId, productId, name, price, quantity FROM table_orders WHERE tableId = ? ORDER BY name ASC',
+    [tableId]
+  );
+};
+
+/** Adds one unit of a product to a table's order (merges an existing line). */
+export const addToTableOrder = async (tableId: string, product: Product): Promise<void> => {
+  const db = await getDB();
+  const existing = await db.getFirstAsync<{ id: string; quantity: number }>(
+    'SELECT id, quantity FROM table_orders WHERE tableId = ? AND productId = ?',
+    [tableId, product.id]
+  );
+  if (existing) {
+    await db.runAsync(
+      'UPDATE table_orders SET quantity = ?, price = ?, updatedAt = ? WHERE id = ?',
+      [existing.quantity + 1, product.sellPrice, nowIso(), existing.id]
+    );
+  } else {
+    await db.runAsync(
+      'INSERT INTO table_orders (id, tableId, productId, name, price, quantity, updatedAt) VALUES (?, ?, ?, ?, ?, 1, ?)',
+      [newId('to'), tableId, product.id, product.name, product.sellPrice, nowIso()]
+    );
+  }
+};
+
+/** Sets a line's quantity, deleting it when it reaches zero. */
+export const setTableOrderQty = async (lineId: string, quantity: number): Promise<void> => {
+  const db = await getDB();
+  if (quantity <= 0) {
+    await db.runAsync('DELETE FROM table_orders WHERE id = ?', [lineId]);
+  } else {
+    await db.runAsync('UPDATE table_orders SET quantity = ?, updatedAt = ? WHERE id = ?', [
+      quantity,
+      nowIso(),
+      lineId,
+    ]);
+  }
+};
+
+export const clearTableOrder = async (tableId: string): Promise<void> => {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM table_orders WHERE tableId = ?', [tableId]);
+};
+
+export interface SettleTableInput {
+  tableId: string;
+  discountAmount: number;
+  paymentMethod: PaymentMethod;
+  userId: string;
+  customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  shiftId?: string | null;
+}
+
+/**
+ * Turns a table's open order into a real sale (honouring the prices shown on
+ * the order), then frees the table. Returns the sale id, or null if empty.
+ */
+export const settleTable = async (input: SettleTableInput): Promise<string | null> => {
+  const order = await getTableOrder(input.tableId);
+  if (order.length === 0) return null;
+  const products = await getProducts();
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const items: CartItem[] = order.map((o) => {
+    const base = byId.get(o.productId);
+    const product: Product = base
+      ? { ...base, sellPrice: o.price }
+      : {
+          id: o.productId,
+          name: o.name,
+          sellPrice: o.price,
+          buyPrice: 0,
+          stock: 0,
+          unit: 'pcs',
+          barcode: null,
+          expiryDate: null,
+          category: null,
+          maxDiscount: null,
+        };
+    return { product, quantity: o.quantity };
+  });
+  const saleId = await checkout({
+    items,
+    discountAmount: input.discountAmount,
+    paymentMethod: input.paymentMethod,
+    userId: input.userId,
+    customerId: input.customerId ?? null,
+    customerName: input.customerName ?? null,
+    customerPhone: input.customerPhone ?? null,
+    shiftId: input.shiftId ?? null,
+  });
+  await clearTableOrder(input.tableId);
   return saleId;
 };
 

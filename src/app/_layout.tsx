@@ -32,6 +32,7 @@ function RootStack() {
         <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="sales" options={{ headerShown: true, title: 'Sales History' }} />
+        <Stack.Screen name="table/[id]" options={{ headerShown: true, title: 'Table' }} />
         <Stack.Screen name="sale/[id]" options={{ headerShown: true, title: 'Sale Details' }} />
         <Stack.Screen name="customers" options={{ headerShown: true, title: 'Customers & Udhaar' }} />
         <Stack.Screen name="customer/[id]" options={{ headerShown: true, title: 'Customer' }} />

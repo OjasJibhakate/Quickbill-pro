@@ -16,8 +16,11 @@ import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/goo
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { snapshotToJson, mergeSnapshot } from '@/database/backup';
+import { isRestaurant } from '@/utils/mode';
 
-const FILE_NAME = 'quickbill-snapshot.json';
+// Separate cloud file per flavor so a restaurant and a shop signed into the
+// same Google account never overwrite each other's snapshot.
+const FILE_NAME = isRestaurant ? 'quickserve-snapshot.json' : 'quickbill-snapshot.json';
 const APPDATA = 'appDataFolder';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const OWNER_EMAIL_KEY = 'qbp_owner_google_email';

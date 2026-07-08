@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, ThemeColors } from '@/context/ThemeContext';
 import { useStore } from '@/context/StoreContext';
+import { isRestaurant, catalogueLabel } from '@/utils/mode';
 
 /** Branded header title: gradient "QBP" logo + the shop's name. */
 function BrandHeader({ colors, isDark, name }: { colors: ThemeColors; isDark: boolean; name: string }) {
@@ -83,30 +84,45 @@ export default function TabNavigator() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={() => router.push('/scan')}
-              hitSlop={8}
-              style={[styles.scanBtn, { backgroundColor: colors.primary + '1A' }]}
-            >
-              <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
-            </TouchableOpacity>
-          ),
+          // Retail scans barcodes; a restaurant doesn't, so hide it there.
+          headerRight: isRestaurant
+            ? undefined
+            : () => (
+                <TouchableOpacity
+                  onPress={() => router.push('/scan')}
+                  hitSlop={8}
+                  style={[styles.scanBtn, { backgroundColor: colors.primary + '1A' }]}
+                >
+                  <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
+                </TouchableOpacity>
+              ),
         }}
       />
       <Tabs.Screen
         name="billing"
         options={{
           title: 'Billing',
+          // Restaurant mode replaces quick-cart billing with the Tables screen.
+          href: isRestaurant ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="cart-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
+        name="tables"
+        options={{
+          title: 'Tables',
+          href: isRestaurant ? undefined : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="grid-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="products"
         options={{
-          title: 'Products',
+          title: catalogueLabel,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="cube-outline" size={size} color={color} />
           ),

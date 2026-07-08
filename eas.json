@@ -17,10 +17,28 @@
         "buildType": "apk"
       }
     },
+    "restaurant": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_FLAVOR": "restaurant"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      }
+    },
+    "restaurant-production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "APP_FLAVOR": "restaurant"
       }
     }
   },
