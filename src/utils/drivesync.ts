@@ -12,6 +12,7 @@
  * Requires a native build (Google Sign-In can't run in Expo Go) and a Web
  * OAuth client id in app.json -> extra.googleWebClientId.
  */
+import { Platform } from 'react-native';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -55,8 +56,13 @@ function ensureConfigured() {
   configured = true;
 }
 
-/** True once a real Web client id is set in app.json -> extra.googleWebClientId. */
+/**
+ * True once a real Web client id is set in app.json -> extra.googleWebClientId.
+ * Native Google Sign-In can't run on web, so Drive sync is disabled there for
+ * now (the desktop/web build stays offline-first; web OAuth comes later).
+ */
 export function isDriveConfigured(): boolean {
+  if (Platform.OS === 'web') return false;
   return webClientId.length > 0 && !webClientId.startsWith('REPLACE_WITH');
 }
 
