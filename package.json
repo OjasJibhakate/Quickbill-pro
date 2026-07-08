@@ -8,7 +8,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "web:export": "expo export -p web",
-    "web:serve": "node scripts/serve-web.js"
+    "web:serve": "node scripts/serve-web.js",
+    "desktop": "expo export -p web && node scripts/serve-web.js"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
