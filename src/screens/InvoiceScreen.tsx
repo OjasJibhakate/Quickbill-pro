@@ -19,6 +19,7 @@ import { useStore } from '@/context/StoreContext';
 import { getSaleDetail, SaleItemDetail } from '@/database/repo';
 import { Sale } from '@/types';
 import { formatCurrency, formatDateTime } from '@/utils/format';
+import { breakdownFromSale } from '@/utils/tax';
 import { buildInvoiceHtml } from '@/utils/invoice';
 import { shareHtmlAsPdf } from '@/utils/share';
 import { Card, Button } from '@/components/ui';
@@ -71,12 +72,10 @@ export default function InvoiceScreen() {
   const hasWebsite = !!store.website.trim();
   const gstNo = store.gstNumber.trim();
 
-  // Optional inclusive GST split: back-calculate CGST/SGST from the final amount
-  // so the collected total never changes.
-  const gstRate = parseFloat(store.gstRate) || 0;
-  const showGst = gstRate > 0;
-  const taxable = showGst ? sale.finalAmount / (1 + gstRate / 100) : sale.finalAmount;
-  const halfTax = showGst ? (sale.finalAmount - taxable) / 2 : 0;
+  // The service charge + GST that were actually added on top of this bill.
+  const b = breakdownFromSale(sale);
+  const showService = b.serviceCharge > 0;
+  const showGst = b.tax > 0;
 
   const getQrDataUrl = (): Promise<string | null> =>
     new Promise((resolve) => {
@@ -108,6 +107,8 @@ export default function InvoiceScreen() {
         })),
         subtotal: sale.totalAmount,
         discount: sale.discountAmount,
+        serviceCharge: sale.serviceCharge ?? 0,
+        taxAmount: sale.taxAmount ?? 0,
         total: sale.finalAmount,
         qrDataUrl,
       });
@@ -205,17 +206,21 @@ export default function InvoiceScreen() {
               {sale.discountAmount > 0 && (
                 <Row label="Discount" value={`- ${formatCurrency(sale.discountAmount)}`} colors={colors} />
               )}
+              {showService && (
+                <Row
+                  label={`Service charge (${b.serviceRate}%)`}
+                  value={formatCurrency(b.serviceCharge)}
+                  colors={colors}
+                />
+              )}
               {showGst && (
                 <>
-                  <Row label="Taxable value" value={formatCurrency(taxable)} colors={colors} />
-                  <Row label={`CGST @ ${gstRate / 2}%`} value={formatCurrency(halfTax)} colors={colors} />
-                  <Row label={`SGST @ ${gstRate / 2}%`} value={formatCurrency(halfTax)} colors={colors} />
+                  <Row label={`CGST @ ${b.gstRate / 2}%`} value={formatCurrency(b.halfTax)} colors={colors} />
+                  <Row label={`SGST @ ${b.gstRate / 2}%`} value={formatCurrency(b.halfTax)} colors={colors} />
                 </>
               )}
               <View style={styles.grandRow}>
-                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 18 }}>
-                  {showGst ? 'Total (incl. GST)' : 'Total'}
-                </Text>
+                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 18 }}>Total</Text>
                 <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 18 }}>
                   {formatCurrency(sale.finalAmount)}
                 </Text>

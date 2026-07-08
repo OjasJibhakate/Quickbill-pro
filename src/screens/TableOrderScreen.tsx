@@ -17,8 +17,10 @@ import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { useStore } from '@/context/StoreContext';
 import { useReload } from '@/hooks/useReload';
 import { useBarcodeWedge } from '@/hooks/useBarcodeWedge';
+import { computeTax } from '@/utils/tax';
 import {
   getProducts,
   getProductByBarcode,
@@ -37,6 +39,7 @@ import { Button } from '@/components/ui';
 export default function TableOrderScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const { store } = useStore();
   const router = useRouter();
   const navigation = useNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -80,7 +83,11 @@ export default function TableOrderScreen() {
     const raw = parseFloat(discount) || 0;
     return Math.min(Math.max(raw, 0), subtotal);
   }, [discount, subtotal]);
-  const total = subtotal - discountValue;
+  const bill = useMemo(
+    () => computeTax(subtotal - discountValue, store.gstRate, store.serviceCharge),
+    [subtotal, discountValue, store.gstRate, store.serviceCharge]
+  );
+  const grandTotal = bill.grandTotal;
   const itemCount = order.reduce((s, o) => s + o.quantity, 0);
 
   const add = async (p: Product) => {
@@ -127,6 +134,8 @@ export default function TableOrderScreen() {
         userId: user.id,
         customerName: tableName,
         shiftId,
+        serviceChargeAmount: bill.serviceCharge,
+        taxAmount: bill.tax,
       });
       setPayOpen(false);
       setBusy(false);
@@ -134,7 +143,7 @@ export default function TableOrderScreen() {
         router.back();
         return;
       }
-      dialog.alert('Table settled', `${tableName} · ${formatCurrency(total)} collected.`, [
+      dialog.alert('Table settled', `${tableName} · ${formatCurrency(grandTotal)} collected.`, [
         {
           text: 'Share bill',
           onPress: () => {
@@ -250,10 +259,28 @@ export default function TableOrderScreen() {
                   style={[styles.discountInput, { color: colors.text, borderColor: colors.border }]}
                 />
               </View>
+              {bill.serviceCharge > 0 && (
+                <View style={styles.sumRow}>
+                  <Text style={{ color: colors.textMuted }}>Service charge ({bill.serviceRate}%)</Text>
+                  <Text style={{ color: colors.text }}>{formatCurrency(bill.serviceCharge)}</Text>
+                </View>
+              )}
+              {bill.tax > 0 && (
+                <>
+                  <View style={styles.sumRow}>
+                    <Text style={{ color: colors.textMuted }}>CGST ({bill.gstRate / 2}%)</Text>
+                    <Text style={{ color: colors.text }}>{formatCurrency(bill.halfTax)}</Text>
+                  </View>
+                  <View style={styles.sumRow}>
+                    <Text style={{ color: colors.textMuted }}>SGST ({bill.gstRate / 2}%)</Text>
+                    <Text style={{ color: colors.text }}>{formatCurrency(bill.halfTax)}</Text>
+                  </View>
+                </>
+              )}
               <View style={[styles.sumRow, { marginTop: 4 }]}>
                 <Text style={{ color: colors.text, fontWeight: '800', fontSize: 18 }}>Total</Text>
                 <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 18 }}>
-                  {formatCurrency(total)}
+                  {formatCurrency(grandTotal)}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
@@ -274,7 +301,7 @@ export default function TableOrderScreen() {
       <Modal visible={payOpen} transparent animationType="slide" onRequestClose={() => setPayOpen(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Collect {formatCurrency(total)}</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Collect {formatCurrency(grandTotal)}</Text>
             <Text style={{ color: colors.textMuted, marginBottom: 16 }}>Select payment method</Text>
             <ScrollView>
               {(['cash', 'upi', 'card'] as PaymentMethod[]).map((m) => (

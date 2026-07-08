@@ -19,8 +19,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { useStore } from '@/context/StoreContext';
 import { useReload } from '@/hooks/useReload';
 import { useBarcodeWedge } from '@/hooks/useBarcodeWedge';
+import { computeTax } from '@/utils/tax';
 import {
   getProducts,
   checkout,
@@ -54,6 +56,7 @@ const HELD_KEY = 'qbp_held_bills';
 export default function BillingScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const { store } = useStore();
   const router = useRouter();
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -179,6 +182,12 @@ export default function BillingScreen() {
 
   const discountPct = subtotal > 0 ? (discountValue / subtotal) * 100 : 0;
   const total = subtotal - discountValue;
+  // GST (and service charge, if configured) added on top of the discounted total.
+  const bill = useMemo(
+    () => computeTax(total, store.gstRate, store.serviceCharge),
+    [total, store.gstRate, store.serviceCharge]
+  );
+  const grandTotal = bill.grandTotal;
 
   // Owner is unlimited; employees are capped per line by the product's own
   // max discount when set, otherwise by their global limit.
@@ -315,7 +324,7 @@ export default function BillingScreen() {
         dialog.alert('Customer needed', 'Select a saved customer to put this bill on udhaar.');
         return;
       }
-      if (customer.creditLimit > 0 && customer.currentDue + total > customer.creditLimit) {
+      if (customer.creditLimit > 0 && customer.currentDue + grandTotal > customer.creditLimit) {
         setPayOpen(false);
         dialog.alert(
           'Credit limit exceeded',
@@ -328,7 +337,7 @@ export default function BillingScreen() {
     }
     setBusy(true);
     try {
-      const charged = total;
+      const charged = grandTotal;
       const saleId = await checkout({
         items: cart,
         discountAmount: discountValue,
@@ -339,6 +348,8 @@ export default function BillingScreen() {
         customerPhone: customer?.phone ?? custPhone,
         customerAddress: custAddress,
         shiftId,
+        serviceChargeAmount: bill.serviceCharge,
+        taxAmount: bill.tax,
       });
       setPayOpen(false);
       clearCart();
@@ -500,10 +511,29 @@ export default function BillingScreen() {
               </Text>
             )}
 
+            {bill.serviceCharge > 0 && (
+              <View style={styles.sumRow}>
+                <Text style={{ color: colors.textMuted }}>Service charge ({bill.serviceRate}%)</Text>
+                <Text style={{ color: colors.text }}>{formatCurrency(bill.serviceCharge)}</Text>
+              </View>
+            )}
+            {bill.tax > 0 && (
+              <>
+                <View style={styles.sumRow}>
+                  <Text style={{ color: colors.textMuted }}>CGST ({bill.gstRate / 2}%)</Text>
+                  <Text style={{ color: colors.text }}>{formatCurrency(bill.halfTax)}</Text>
+                </View>
+                <View style={styles.sumRow}>
+                  <Text style={{ color: colors.textMuted }}>SGST ({bill.gstRate / 2}%)</Text>
+                  <Text style={{ color: colors.text }}>{formatCurrency(bill.halfTax)}</Text>
+                </View>
+              </>
+            )}
+
             <View style={[styles.sumRow, { marginTop: 4 }]}>
               <Text style={{ color: colors.text, fontWeight: '800', fontSize: 18 }}>Total</Text>
               <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 18 }}>
-                {formatCurrency(total)}
+                {formatCurrency(grandTotal)}
               </Text>
             </View>
             {/* Saved customer chip, or: add name first (frequent), then credit/udhaar link */}
@@ -591,7 +621,7 @@ export default function BillingScreen() {
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Collect {formatCurrency(total)}
+              Collect {formatCurrency(grandTotal)}
             </Text>
             <Text style={{ color: colors.textMuted, marginBottom: 16 }}>Select payment method</Text>
             <ScrollView>

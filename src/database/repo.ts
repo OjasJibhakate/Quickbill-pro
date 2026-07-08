@@ -1,5 +1,6 @@
 import { getDB } from './index';
 import { newId } from '@/utils/id';
+import { computeTax, breakdownFromSale } from '@/utils/tax';
 import {
   Product,
   Sale,
@@ -398,6 +399,10 @@ export interface CheckoutInput {
   customerPhone?: string | null;
   customerAddress?: string | null;
   shiftId?: string | null;
+  /** Service charge added before GST (restaurant); default 0. */
+  serviceChargeAmount?: number;
+  /** GST added on top of (subtotal − discount + service charge); default 0. */
+  taxAmount?: number;
 }
 
 /**
@@ -411,15 +416,18 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
     0
   );
   const discount = Math.min(Math.max(input.discountAmount, 0), total);
-  const final = total - discount;
+  const serviceCharge = Math.max(input.serviceChargeAmount ?? 0, 0);
+  const tax = Math.max(input.taxAmount ?? 0, 0);
+  // GST and service charge are added ON TOP of the discounted food value.
+  const final = total - discount + serviceCharge + tax;
   const saleId = newId('sale');
   const now = new Date().toISOString();
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
       `INSERT INTO sales
-         (id, customerId, userId, shiftId, totalAmount, discountAmount, finalAmount, paymentMethod, date, customerName, customerPhone, customerAddress)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, customerId, userId, shiftId, totalAmount, discountAmount, finalAmount, paymentMethod, date, customerName, customerPhone, customerAddress, serviceCharge, taxAmount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleId,
         input.customerId ?? null,
@@ -433,6 +441,8 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
         input.customerName?.trim() || null,
         input.customerPhone?.trim() || null,
         input.customerAddress?.trim() || null,
+        serviceCharge,
+        tax,
       ]
     );
 
@@ -605,6 +615,8 @@ export interface SettleTableInput {
   customerName?: string | null;
   customerPhone?: string | null;
   shiftId?: string | null;
+  serviceChargeAmount?: number;
+  taxAmount?: number;
 }
 
 /**
@@ -644,6 +656,8 @@ export const settleTable = async (input: SettleTableInput): Promise<string | nul
     customerName: input.customerName ?? null,
     customerPhone: input.customerPhone ?? null,
     shiftId: input.shiftId ?? null,
+    serviceChargeAmount: input.serviceChargeAmount ?? 0,
+    taxAmount: input.taxAmount ?? 0,
   });
   await clearTableOrder(input.tableId);
   return saleId;
@@ -729,7 +743,13 @@ export const updateSale = async (
   const kept = lines.filter((l) => l.quantity > 0);
   const newTotal = kept.reduce((s, l) => s + l.priceAtSale * l.quantity, 0);
   const newDiscount = Math.min(sale.discountAmount, newTotal);
-  const newFinal = newTotal - newDiscount;
+  // Re-apply the original bill's service-charge & GST rates to the new subtotal
+  // so an edited bill's tax stays consistent (instead of silently dropping it).
+  const { serviceRate, gstRate } = breakdownFromSale(sale);
+  const nb = computeTax(newTotal - newDiscount, String(gstRate), String(serviceRate));
+  const newService = nb.serviceCharge;
+  const newTax = nb.tax;
+  const newFinal = nb.grandTotal;
 
   await db.withTransactionAsync(async () => {
     // Restore stock from the existing lines, then clear them.
@@ -753,8 +773,8 @@ export const updateSale = async (
     }
 
     await db.runAsync(
-      'UPDATE sales SET totalAmount = ?, discountAmount = ?, finalAmount = ? WHERE id = ?',
-      [newTotal, newDiscount, newFinal, saleId]
+      'UPDATE sales SET totalAmount = ?, discountAmount = ?, serviceCharge = ?, taxAmount = ?, finalAmount = ? WHERE id = ?',
+      [newTotal, newDiscount, newService, newTax, newFinal, saleId]
     );
 
     // Keep a credit customer's outstanding balance in sync with the change.

@@ -107,6 +107,10 @@ export interface Sale {
   customerName?: string | null;
   customerPhone?: string | null;
   customerAddress?: string | null;
+  /** Service charge added before GST (restaurant); 0 if none. */
+  serviceCharge?: number;
+  /** Total GST added on top of the taxable amount; 0 if none. */
+  taxAmount?: number;
 }
 
 export interface SaleItem {

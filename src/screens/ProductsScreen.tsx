@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
+  SectionList,
   TextInput,
   TouchableOpacity,
   Modal,
@@ -168,6 +169,78 @@ export default function ProductsScreen() {
     ]);
   };
 
+  // Restaurant menu is grouped by category (Starters, Main Course, Drinks…).
+  const sections = useMemo(() => {
+    const map = new Map<string, Product[]>();
+    for (const p of products) {
+      const cat = (p.category || 'Other').trim() || 'Other';
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(p);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([title, data]) => ({
+        title,
+        data: [...data].sort((x, y) => x.name.localeCompare(y.name)),
+      }));
+  }, [products]);
+
+  const emptyList = (
+    <EmptyState
+      icon={isRestaurant ? '🍽️' : '📦'}
+      title={isRestaurant ? 'No menu items yet' : 'No products yet'}
+      subtitle={`Tap + to add your first ${itemLabel.toLowerCase()}.`}
+    />
+  );
+
+  const renderCard = (item: Product) => {
+    const margin = item.sellPrice - item.buyPrice;
+    return (
+      <TouchableOpacity
+        onPress={() => openEdit(item)}
+        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>{item.name}</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
+            {item.category || 'Uncategorized'}
+            {item.barcode ? ` · ${item.barcode}` : ''}
+          </Text>
+          {isOwner && (
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
+              Buy {formatCurrency(item.buyPrice)} · Margin{' '}
+              <Text style={{ color: margin >= 0 ? colors.success : colors.danger }}>
+                {formatCurrency(margin)}
+              </Text>
+            </Text>
+          )}
+        </View>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <Text style={{ color: colors.primary, fontWeight: '800' }}>{formatCurrency(item.sellPrice)}</Text>
+          {item.trackStock === 0 ? (
+            <View style={[styles.stockPill, { backgroundColor: colors.textMuted + '22' }]}>
+              <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{item.unit}</Text>
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.stockPill,
+                { backgroundColor: (item.stock <= 5 ? colors.danger : colors.success) + '22' },
+              ]}
+            >
+              <Text style={{ color: item.stock <= 5 ? colors.danger : colors.success, fontSize: 12, fontWeight: '700' }}>
+                {item.stock} {item.unit}
+              </Text>
+            </View>
+          )}
+          <TouchableOpacity onPress={() => remove(item)} hitSlop={8}>
+            <Ionicons name="trash-outline" size={18} color={colors.danger} />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1, padding: 16 }}>
@@ -182,71 +255,32 @@ export default function ProductsScreen() {
           />
         </View>
 
-        <FlatList
-          data={products}
-          keyExtractor={(p) => p.id}
-          contentContainerStyle={{ paddingBottom: 90 }}
-          ListEmptyComponent={
-            <EmptyState
-              icon={isRestaurant ? '🍽️' : '📦'}
-              title={isRestaurant ? 'No menu items yet' : 'No products yet'}
-              subtitle={`Tap + to add your first ${itemLabel.toLowerCase()}.`}
-            />
-          }
-          renderItem={({ item }) => {
-            const margin = item.sellPrice - item.buyPrice;
-            return (
-              <TouchableOpacity
-                onPress={() => openEdit(item)}
-                style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>
-                    {item.name}
-                  </Text>
-                  <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
-                    {item.category || 'Uncategorized'}
-                    {item.barcode ? ` · ${item.barcode}` : ''}
-                  </Text>
-                  {isOwner && (
-                    <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
-                      Buy {formatCurrency(item.buyPrice)} · Margin{' '}
-                      <Text style={{ color: margin >= 0 ? colors.success : colors.danger }}>
-                        {formatCurrency(margin)}
-                      </Text>
-                    </Text>
-                  )}
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                  <Text style={{ color: colors.primary, fontWeight: '800' }}>
-                    {formatCurrency(item.sellPrice)}
-                  </Text>
-                  {item.trackStock === 0 ? (
-                    <View style={[styles.stockPill, { backgroundColor: colors.textMuted + '22' }]}>
-                      <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>
-                        {item.unit}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View
-                      style={[
-                        styles.stockPill,
-                        { backgroundColor: (item.stock <= 5 ? colors.danger : colors.success) + '22' },
-                      ]}
-                    >
-                      <Text style={{ color: item.stock <= 5 ? colors.danger : colors.success, fontSize: 12, fontWeight: '700' }}>
-                        {item.stock} {item.unit}
-                      </Text>
-                    </View>
-                  )}
-                  <TouchableOpacity onPress={() => remove(item)} hitSlop={8}>
-                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-        />
+        {isRestaurant ? (
+          <SectionList
+            sections={sections}
+            keyExtractor={(p) => p.id}
+            contentContainerStyle={{ paddingBottom: 90 }}
+            stickySectionHeadersEnabled={false}
+            ListEmptyComponent={emptyList}
+            renderSectionHeader={({ section }) => (
+              <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
+                <Text style={{ color: colors.textMuted, fontWeight: '800', fontSize: 13, letterSpacing: 0.5 }}>
+                  {section.title.toUpperCase()}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>{section.data.length}</Text>
+              </View>
+            )}
+            renderItem={({ item }) => renderCard(item)}
+          />
+        ) : (
+          <FlatList
+            data={products}
+            keyExtractor={(p) => p.id}
+            contentContainerStyle={{ paddingBottom: 90 }}
+            ListEmptyComponent={emptyList}
+            renderItem={({ item }) => renderCard(item)}
+          />
+        )}
       </View>
 
       <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={openAdd}>
@@ -400,6 +434,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   stockPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
   trackRow: {
     flexDirection: 'row',
     alignItems: 'center',

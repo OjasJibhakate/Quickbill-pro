@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme, ThemeMode } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useStore } from '@/context/StoreContext';
+import { isRestaurant } from '@/utils/mode';
 import { Card, Button, Field } from '@/components/ui';
 
 export default function SettingsScreen() {
@@ -108,13 +109,23 @@ export default function SettingsScreen() {
             placeholder="e.g. 27ABCDE1234F1Z5"
           />
           <Field
-            label="GST rate % (optional — adds an inclusive CGST/SGST split)"
+            label="GST rate % (optional — added on top as CGST + SGST)"
             value={store.gstRate}
             onChangeText={(t) => updateStore({ gstRate: t.replace(/[^0-9.]/g, '') })}
             keyboardType="numeric"
             placeholder="e.g. 5 (leave blank for none)"
-            containerStyle={{ marginBottom: 0 }}
+            containerStyle={{ marginBottom: isRestaurant ? 14 : 0 }}
           />
+          {isRestaurant && (
+            <Field
+              label="Service charge % (optional — added before GST)"
+              value={store.serviceCharge}
+              onChangeText={(t) => updateStore({ serviceCharge: t.replace(/[^0-9.]/g, '') })}
+              keyboardType="numeric"
+              placeholder="e.g. 5 (leave blank for none)"
+              containerStyle={{ marginBottom: 0 }}
+            />
+          )}
         </Card>
 
         {isOwner && (

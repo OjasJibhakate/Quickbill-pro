@@ -11,6 +11,8 @@ export interface InvoiceData {
   items: { name: string; quantity: number; price: number }[];
   subtotal: number;
   discount: number;
+  serviceCharge?: number; // added before GST
+  taxAmount?: number; // total GST added on top
   total: number;
   qrDataUrl?: string | null; // data:image/png;base64,... for the website QR
 }
@@ -52,16 +54,24 @@ export const buildInvoiceHtml = (d: InvoiceData): string => {
   const contactLine = [store.phone, store.website].filter(Boolean).map(esc).join('  •  ');
   const gstNo = (store.gstNumber || '').trim();
 
-  // Optional inclusive GST split, back-calculated from the total.
-  const gstRate = parseFloat(store.gstRate || '') || 0;
-  const showGst = gstRate > 0;
-  const taxable = showGst ? d.total / (1 + gstRate / 100) : d.total;
-  const halfTax = showGst ? (d.total - taxable) / 2 : 0;
-  const gstRows = showGst
-    ? `<div class="row"><span class="muted">Taxable value</span><span>${inr(taxable)}</span></div>
-       <div class="row"><span class="muted">CGST @ ${gstRate / 2}%</span><span>${inr(halfTax)}</span></div>
+  // Service charge + GST that were added on top of this bill (from the sale).
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const base = d.subtotal - d.discount;
+  const serviceCharge = d.serviceCharge ?? 0;
+  const taxable = base + serviceCharge;
+  const tax = d.taxAmount ?? 0;
+  const serviceRate = base > 0 ? round2((serviceCharge / base) * 100) : 0;
+  const gstRate = taxable > 0 ? round2((tax / taxable) * 100) : 0;
+  const halfTax = tax / 2;
+  const serviceRow =
+    serviceCharge > 0
+      ? `<div class="row"><span class="muted">Service charge (${serviceRate}%)</span><span>${inr(serviceCharge)}</span></div>`
+      : '';
+  const gstRows =
+    tax > 0
+      ? `<div class="row"><span class="muted">CGST @ ${gstRate / 2}%</span><span>${inr(halfTax)}</span></div>
        <div class="row"><span class="muted">SGST @ ${gstRate / 2}%</span><span>${inr(halfTax)}</span></div>`
-    : '';
+      : '';
 
   const qrBlock = d.qrDataUrl
     ? `<div class="qr">
@@ -140,8 +150,9 @@ export const buildInvoiceHtml = (d: InvoiceData): string => {
   <div class="totals">
     <div class="row"><span class="muted">Subtotal</span><span>${inr(d.subtotal)}</span></div>
     ${d.discount > 0 ? `<div class="row"><span class="muted">Discount</span><span>- ${inr(d.discount)}</span></div>` : ''}
+    ${serviceRow}
     ${gstRows}
-    <div class="row grand"><span>${showGst ? 'Total (incl. GST)' : 'Total'}</span><span class="amt">${inr(d.total)}</span></div>
+    <div class="row grand"><span>Total</span><span class="amt">${inr(d.total)}</span></div>
     <div class="pay"><span>Paid via ${esc(d.paymentMethod)}</span></div>
   </div>
 

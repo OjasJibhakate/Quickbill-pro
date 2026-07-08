@@ -10,7 +10,8 @@ export interface StoreProfile {
   phone: string;
   website: string; // optional; used for the invoice QR code
   gstNumber: string; // optional GSTIN, shown on the bill
-  gstRate: string; // optional GST % — if set, the bill shows an inclusive tax split
+  gstRate: string; // optional GST % — added on top of the bill (CGST+SGST split)
+  serviceCharge: string; // optional service charge % — added before GST (restaurant)
 }
 
 const EMPTY: StoreProfile = {
@@ -20,6 +21,7 @@ const EMPTY: StoreProfile = {
   website: '',
   gstNumber: '',
   gstRate: '',
+  serviceCharge: '',
 };
 
 interface StoreContextType {
