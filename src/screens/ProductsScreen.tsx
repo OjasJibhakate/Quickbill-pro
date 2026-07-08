@@ -9,6 +9,7 @@ import {
   Modal,
   ScrollView,
   Alert,
+  Switch,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -21,6 +22,7 @@ import { useReload } from '@/hooks/useReload';
 import { getProducts, saveProduct, deleteProduct, getCategories } from '@/database/repo';
 import { Product } from '@/types';
 import { formatCurrency, formatDateInput, validateExpiryDate } from '@/utils/format';
+import { isRestaurant } from '@/utils/mode';
 import { Button, Field, EmptyState } from '@/components/ui';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 
@@ -35,6 +37,7 @@ interface FormState {
   category: string;
   expiryDate: string;
   maxDiscount: string;
+  trackStock: boolean;
 }
 
 const emptyForm: FormState = {
@@ -43,15 +46,18 @@ const emptyForm: FormState = {
   buyPrice: '',
   sellPrice: '',
   stock: '',
-  unit: 'pcs',
+  unit: isRestaurant ? 'plate' : 'pcs',
   category: '',
   expiryDate: '',
   maxDiscount: '',
+  // Retail tracks stock by default; a restaurant dish does not.
+  trackStock: !isRestaurant,
 };
 
 export default function ProductsScreen() {
   const { colors } = useTheme();
   const { isOwner } = useAuth();
+  const itemLabel = isRestaurant ? 'Menu Item' : 'Product';
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -88,6 +94,7 @@ export default function ProductsScreen() {
       category: p.category ?? '',
       expiryDate: p.expiryDate ?? '',
       maxDiscount: p.maxDiscount != null ? String(p.maxDiscount) : '',
+      trackStock: p.trackStock !== 0,
     });
     setModalOpen(true);
   };
@@ -130,11 +137,12 @@ export default function ProductsScreen() {
         barcode: form.barcode.trim() || null,
         buyPrice: parseFloat(form.buyPrice) || 0,
         sellPrice: parseFloat(form.sellPrice) || 0,
-        stock: parseInt(form.stock, 10) || 0,
+        stock: form.trackStock ? parseInt(form.stock, 10) || 0 : 0,
         unit: form.unit.trim() || 'pcs',
         category: form.category.trim() || null,
         expiryDate: form.expiryDate.trim() || null,
         maxDiscount: form.maxDiscount.trim() === '' ? null : parseFloat(form.maxDiscount) || 0,
+        trackStock: form.trackStock ? 1 : 0,
       });
       setModalOpen(false);
       reload();
@@ -179,7 +187,11 @@ export default function ProductsScreen() {
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ paddingBottom: 90 }}
           ListEmptyComponent={
-            <EmptyState icon="📦" title="No products yet" subtitle="Tap + to add your first product." />
+            <EmptyState
+              icon={isRestaurant ? '🍽️' : '📦'}
+              title={isRestaurant ? 'No menu items yet' : 'No products yet'}
+              subtitle={`Tap + to add your first ${itemLabel.toLowerCase()}.`}
+            />
           }
           renderItem={({ item }) => {
             const margin = item.sellPrice - item.buyPrice;
@@ -209,16 +221,24 @@ export default function ProductsScreen() {
                   <Text style={{ color: colors.primary, fontWeight: '800' }}>
                     {formatCurrency(item.sellPrice)}
                   </Text>
-                  <View
-                    style={[
-                      styles.stockPill,
-                      { backgroundColor: (item.stock <= 5 ? colors.danger : colors.success) + '22' },
-                    ]}
-                  >
-                    <Text style={{ color: item.stock <= 5 ? colors.danger : colors.success, fontSize: 12, fontWeight: '700' }}>
-                      {item.stock} {item.unit}
-                    </Text>
-                  </View>
+                  {item.trackStock === 0 ? (
+                    <View style={[styles.stockPill, { backgroundColor: colors.textMuted + '22' }]}>
+                      <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>
+                        {item.unit}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        styles.stockPill,
+                        { backgroundColor: (item.stock <= 5 ? colors.danger : colors.success) + '22' },
+                      ]}
+                    >
+                      <Text style={{ color: item.stock <= 5 ? colors.danger : colors.success, fontSize: 12, fontWeight: '700' }}>
+                        {item.stock} {item.unit}
+                      </Text>
+                    </View>
+                  )}
                   <TouchableOpacity onPress={() => remove(item)} hitSlop={8}>
                     <Ionicons name="trash-outline" size={18} color={colors.danger} />
                   </TouchableOpacity>
@@ -241,14 +261,14 @@ export default function ProductsScreen() {
           >
             <View style={[styles.modalHeader, { borderColor: colors.border }]}>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>
-                {form.id ? 'Edit Product' : 'Add Product'}
+                {form.id ? `Edit ${itemLabel}` : `Add ${itemLabel}`}
               </Text>
               <TouchableOpacity onPress={() => setModalOpen(false)}>
                 <Ionicons name="close" size={26} color={colors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
-              <Field label="Name *" value={form.name} onChangeText={(t) => set('name', t)} placeholder="e.g. Parle-G Biscuit" />
+              <Field label="Name *" value={form.name} onChangeText={(t) => set('name', t)} placeholder={isRestaurant ? 'e.g. Butter Chicken' : 'e.g. Parle-G Biscuit'} />
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 {(isOwner || !form.id) && (
                   <Field
@@ -262,12 +282,28 @@ export default function ProductsScreen() {
                 )}
                 <Field label="Sell Price" containerStyle={{ flex: 1 }} value={form.sellPrice} onChangeText={(t) => set('sellPrice', t)} keyboardType="numeric" placeholder="0" />
               </View>
+              {isRestaurant && (
+                <View style={[styles.trackRow, { borderColor: colors.border }]}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={{ color: colors.text, fontWeight: '600' }}>Track stock</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                      For bottles, packs, cigarettes. Leave off for dishes.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={form.trackStock}
+                    onValueChange={(v) => setForm((f) => ({ ...f, trackStock: v }))}
+                  />
+                </View>
+              )}
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Field label="Stock" containerStyle={{ flex: 1 }} value={form.stock} onChangeText={(t) => set('stock', t)} keyboardType="numeric" placeholder="0" />
-                <Field label="Unit" containerStyle={{ flex: 1 }} value={form.unit} onChangeText={(t) => set('unit', t)} placeholder="pcs / kg / L" />
+                {form.trackStock && (
+                  <Field label="Stock" containerStyle={{ flex: 1 }} value={form.stock} onChangeText={(t) => set('stock', t)} keyboardType="numeric" placeholder="0" />
+                )}
+                <Field label="Unit" containerStyle={{ flex: 1 }} value={form.unit} onChangeText={(t) => set('unit', t)} placeholder={isRestaurant ? 'plate / pcs' : 'pcs / kg / L'} />
               </View>
 
-              <Field label="Category" value={form.category} onChangeText={(t) => set('category', t)} placeholder="e.g. Snacks" />
+              <Field label="Category" value={form.category} onChangeText={(t) => set('category', t)} placeholder={isRestaurant ? 'e.g. Starters / Main Course / Drinks' : 'e.g. Snacks'} />
               {categorySuggestions.length > 0 && (
                 <View style={styles.chipRow}>
                   {categorySuggestions.map((c) => (
@@ -325,7 +361,7 @@ export default function ProductsScreen() {
                 </Text>
               )}
 
-              <Button title={form.id ? 'Save Changes' : 'Add Product'} onPress={save} loading={saving} style={{ marginTop: 8 }} />
+              <Button title={form.id ? 'Save Changes' : `Add ${itemLabel}`} onPress={save} loading={saving} style={{ marginTop: 8 }} />
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -364,6 +400,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   stockPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  trackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
   scanBtn: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: -4, marginBottom: 14 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },

@@ -170,7 +170,7 @@ export const saveProduct = async (
     const prev = await db.getFirstAsync<{ stock: number }>('SELECT stock FROM products WHERE id = ?', [p.id]);
     await db.runAsync(
       `UPDATE products SET name = ?, barcode = ?, buyPrice = ?, sellPrice = ?,
-         stock = ?, unit = ?, expiryDate = ?, category = ?, maxDiscount = ?, updatedAt = ? WHERE id = ?`,
+         stock = ?, unit = ?, expiryDate = ?, category = ?, maxDiscount = ?, trackStock = ?, updatedAt = ? WHERE id = ?`,
       [
         p.name,
         p.barcode ?? null,
@@ -181,6 +181,7 @@ export const saveProduct = async (
         p.expiryDate ?? null,
         p.category ?? null,
         p.maxDiscount ?? null,
+        p.trackStock ?? 1,
         nowIso(),
         p.id,
       ]
@@ -198,8 +199,8 @@ export const saveProduct = async (
   const id = newId('prod');
   const ts = nowIso();
   await db.runAsync(
-    `INSERT INTO products (id, name, barcode, buyPrice, sellPrice, stock, unit, expiryDate, category, maxDiscount, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (id, name, barcode, buyPrice, sellPrice, stock, unit, expiryDate, category, maxDiscount, trackStock, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       p.name,
@@ -211,6 +212,7 @@ export const saveProduct = async (
       p.expiryDate ?? null,
       p.category ?? null,
       p.maxDiscount ?? null,
+      p.trackStock ?? 1,
       ts,
     ]
   );
@@ -255,7 +257,7 @@ export const adjustStock = async (id: string, delta: number): Promise<void> => {
 export const getLowStockProducts = async (): Promise<Product[]> => {
   const db = await getDB();
   return db.getAllAsync<Product>(
-    'SELECT * FROM products WHERE stock <= ? ORDER BY stock ASC',
+    'SELECT * FROM products WHERE stock <= ? AND COALESCE(trackStock, 1) = 1 ORDER BY stock ASC',
     [LOW_STOCK_THRESHOLD]
   );
 };
@@ -440,9 +442,12 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
            VALUES (?, ?, ?, ?, ?)`,
         [newId('si'), saleId, it.product.id, it.quantity, it.product.sellPrice]
       );
-      await addStockEvent(db, it.product.id, -it.quantity, 'sale', saleId);
-      // Best-effort: draw down tracked batches first-expiry-first (FEFO).
-      await deductBatchesFEFO(db, it.product.id, it.quantity);
+      // Untracked items (restaurant dishes) don't move stock.
+      if (it.product.trackStock !== 0) {
+        await addStockEvent(db, it.product.id, -it.quantity, 'sale', saleId);
+        // Best-effort: draw down tracked batches first-expiry-first (FEFO).
+        await deductBatchesFEFO(db, it.product.id, it.quantity);
+      }
     }
 
     // On-credit sales add to the customer's outstanding due and ledger.
@@ -626,6 +631,7 @@ export const settleTable = async (input: SettleTableInput): Promise<string | nul
           expiryDate: null,
           category: null,
           maxDiscount: null,
+          trackStock: 0,
         };
     return { product, quantity: o.quantity };
   });
@@ -818,7 +824,7 @@ export const getHomeStats = async (): Promise<HomeStats> => {
        FROM sales WHERE date(date, 'localtime') = date('now', 'localtime')`
   );
   const low = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) AS count FROM products WHERE stock <= ?',
+    'SELECT COUNT(*) AS count FROM products WHERE stock <= ? AND COALESCE(trackStock, 1) = 1',
     [LOW_STOCK_THRESHOLD]
   );
   const products = await db.getFirstAsync<{ count: number }>(

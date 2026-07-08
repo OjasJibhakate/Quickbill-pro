@@ -99,6 +99,20 @@ export default function SettingsScreen() {
             keyboardType="url"
             autoCapitalize="none"
             placeholder="https://yourstore.com"
+          />
+          <Field
+            label="GST number / GSTIN (optional — shown on bill)"
+            value={store.gstNumber}
+            onChangeText={(t) => updateStore({ gstNumber: t.toUpperCase() })}
+            autoCapitalize="characters"
+            placeholder="e.g. 27ABCDE1234F1Z5"
+          />
+          <Field
+            label="GST rate % (optional — adds an inclusive CGST/SGST split)"
+            value={store.gstRate}
+            onChangeText={(t) => updateStore({ gstRate: t.replace(/[^0-9.]/g, '') })}
+            keyboardType="numeric"
+            placeholder="e.g. 5 (leave blank for none)"
             containerStyle={{ marginBottom: 0 }}
           />
         </Card>

@@ -25,6 +25,8 @@ export interface Product {
   category?: string | null;
   /** Per-product max discount % for employees; null = use the employee's global limit. */
   maxDiscount?: number | null;
+  /** 1 = track stock (retail default); 0 = untracked (restaurant dishes). */
+  trackStock?: number;
 }
 
 export interface Customer {

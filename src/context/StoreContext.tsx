@@ -9,9 +9,18 @@ export interface StoreProfile {
   address: string;
   phone: string;
   website: string; // optional; used for the invoice QR code
+  gstNumber: string; // optional GSTIN, shown on the bill
+  gstRate: string; // optional GST % — if set, the bill shows an inclusive tax split
 }
 
-const EMPTY: StoreProfile = { name: '', address: '', phone: '', website: '' };
+const EMPTY: StoreProfile = {
+  name: '',
+  address: '',
+  phone: '',
+  website: '',
+  gstNumber: '',
+  gstRate: '',
+};
 
 interface StoreContextType {
   store: StoreProfile;

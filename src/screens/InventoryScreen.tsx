@@ -55,7 +55,9 @@ export default function InventoryScreen() {
   }, []);
 
   const reload = useReload(async () => {
-    setProducts(await getProducts());
+    // Only stock-tracked items belong here; restaurant dishes (untracked) don't.
+    const all = await getProducts();
+    setProducts(all.filter((p) => p.trackStock !== 0));
     if (isOwner) setSupplierDue(await getTotalPayable());
   });
 

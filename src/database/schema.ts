@@ -241,6 +241,10 @@ const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
   // Per-product max employee discount override (null = use employee default).
   await addColumnIfMissing('products', 'maxDiscount', 'REAL');
 
+  // Whether stock is tracked for this product. Retail = 1 (always tracked);
+  // restaurant dishes = 0 (unlimited, no stock), useful only for bottles/cigs.
+  await addColumnIfMissing('products', 'trackStock', 'INTEGER DEFAULT 1');
+
   // Per-employee access permissions granted by the owner (0/1).
   await addColumnIfMissing('users', 'canStockIn', 'INTEGER DEFAULT 0');
   await addColumnIfMissing('users', 'canSuppliers', 'INTEGER DEFAULT 0');

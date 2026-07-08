@@ -50,6 +50,18 @@ export const buildInvoiceHtml = (d: InvoiceData): string => {
       : '';
 
   const contactLine = [store.phone, store.website].filter(Boolean).map(esc).join('  •  ');
+  const gstNo = (store.gstNumber || '').trim();
+
+  // Optional inclusive GST split, back-calculated from the total.
+  const gstRate = parseFloat(store.gstRate || '') || 0;
+  const showGst = gstRate > 0;
+  const taxable = showGst ? d.total / (1 + gstRate / 100) : d.total;
+  const halfTax = showGst ? (d.total - taxable) / 2 : 0;
+  const gstRows = showGst
+    ? `<div class="row"><span class="muted">Taxable value</span><span>${inr(taxable)}</span></div>
+       <div class="row"><span class="muted">CGST @ ${gstRate / 2}%</span><span>${inr(halfTax)}</span></div>
+       <div class="row"><span class="muted">SGST @ ${gstRate / 2}%</span><span>${inr(halfTax)}</span></div>`
+    : '';
 
   const qrBlock = d.qrDataUrl
     ? `<div class="qr">
@@ -99,6 +111,7 @@ export const buildInvoiceHtml = (d: InvoiceData): string => {
     <div class="addr">
       ${store.address ? esc(store.address) + '<br/>' : ''}
       ${contactLine}
+      ${gstNo ? (contactLine ? '<br/>' : '') + 'GSTIN: ' + esc(gstNo) : ''}
     </div>
   </div>
 
@@ -127,7 +140,8 @@ export const buildInvoiceHtml = (d: InvoiceData): string => {
   <div class="totals">
     <div class="row"><span class="muted">Subtotal</span><span>${inr(d.subtotal)}</span></div>
     ${d.discount > 0 ? `<div class="row"><span class="muted">Discount</span><span>- ${inr(d.discount)}</span></div>` : ''}
-    <div class="row grand"><span>Total</span><span class="amt">${inr(d.total)}</span></div>
+    ${gstRows}
+    <div class="row grand"><span>${showGst ? 'Total (incl. GST)' : 'Total'}</span><span class="amt">${inr(d.total)}</span></div>
     <div class="pay"><span>Paid via ${esc(d.paymentMethod)}</span></div>
   </div>
 

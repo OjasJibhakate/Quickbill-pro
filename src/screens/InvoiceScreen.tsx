@@ -8,9 +8,11 @@ import {
   Alert,
   Linking,
 } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { dialog } from '@/components/Dialog';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { useTheme } from '@/context/ThemeContext';
 import { useStore } from '@/context/StoreContext';
@@ -25,6 +27,12 @@ export default function InvoiceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const { store } = useStore();
+  const router = useRouter();
+
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  };
 
   const [sale, setSale] = useState<Sale | null>(null);
   const [items, setItems] = useState<SaleItemDetail[]>([]);
@@ -61,6 +69,14 @@ export default function InvoiceScreen() {
   const storeName = store.name.trim() || 'QuickBill Pro';
   const invoiceNo = sale.id.replace(/^sale-/, '').slice(0, 8).toUpperCase();
   const hasWebsite = !!store.website.trim();
+  const gstNo = store.gstNumber.trim();
+
+  // Optional inclusive GST split: back-calculate CGST/SGST from the final amount
+  // so the collected total never changes.
+  const gstRate = parseFloat(store.gstRate) || 0;
+  const showGst = gstRate > 0;
+  const taxable = showGst ? sale.finalAmount / (1 + gstRate / 100) : sale.finalAmount;
+  const halfTax = showGst ? (sale.finalAmount - taxable) / 2 : 0;
 
   const getQrDataUrl = (): Promise<string | null> =>
     new Promise((resolve) => {
@@ -122,7 +138,15 @@ export default function InvoiceScreen() {
   };
 
   return (
-    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={[styles.navBar, { borderColor: colors.border }]}>
+        <TouchableOpacity onPress={goBack} hitSlop={10} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700' }}>Back</Text>
+        </TouchableOpacity>
+        <Text style={{ color: colors.text, fontSize: 17, fontWeight: '800' }}>Invoice</Text>
+        <View style={{ width: 64 }} />
+      </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
         {/* Preview */}
         <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -134,6 +158,7 @@ export default function InvoiceScreen() {
                 {[store.phone, store.website].filter(Boolean).join('  •  ')}
               </Text>
             )}
+            {gstNo ? <Text style={styles.headMuted}>GSTIN: {gstNo}</Text> : null}
           </View>
 
           <View style={{ padding: 16 }}>
@@ -180,8 +205,17 @@ export default function InvoiceScreen() {
               {sale.discountAmount > 0 && (
                 <Row label="Discount" value={`- ${formatCurrency(sale.discountAmount)}`} colors={colors} />
               )}
+              {showGst && (
+                <>
+                  <Row label="Taxable value" value={formatCurrency(taxable)} colors={colors} />
+                  <Row label={`CGST @ ${gstRate / 2}%`} value={formatCurrency(halfTax)} colors={colors} />
+                  <Row label={`SGST @ ${gstRate / 2}%`} value={formatCurrency(halfTax)} colors={colors} />
+                </>
+              )}
               <View style={styles.grandRow}>
-                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 18 }}>Total</Text>
+                <Text style={{ color: colors.text, fontWeight: '800', fontSize: 18 }}>
+                  {showGst ? 'Total (incl. GST)' : 'Total'}
+                </Text>
                 <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 18 }}>
                   {formatCurrency(sale.finalAmount)}
                 </Text>
@@ -233,6 +267,15 @@ const Row = ({
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 64 },
   head: { padding: 18 },
   storeName: { color: '#FFF', fontSize: 22, fontWeight: '800' },
   headMuted: { color: '#FFFFFFE0', fontSize: 12, marginTop: 4 },
