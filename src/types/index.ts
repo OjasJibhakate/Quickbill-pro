@@ -150,6 +150,9 @@ export interface DiningTable {
   id: string;
   name: string;
   sortOrder: number;
+  //added
+   type?: 'table' | 'p2p';
+  customerPhone?: string | null;
 }
 
 /** Restaurant mode: a saved line on a table's open (unsettled) order. */
