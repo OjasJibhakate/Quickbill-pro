@@ -1,25 +1,40 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Tabs, Redirect, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '@/context/AuthContext';
-import { useTheme, ThemeColors } from '@/context/ThemeContext';
-import { useStore } from '@/context/StoreContext';
-import { isRestaurant, catalogueLabel } from '@/utils/mode';
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Tabs, Redirect, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useAuth } from "@/context/AuthContext";
+import { useTheme, ThemeColors } from "@/context/ThemeContext";
+import { useStore } from "@/context/StoreContext";
+import { isRestaurant, catalogueLabel } from "@/utils/mode";
 
 /** Branded header title: gradient "QBP" logo + the shop's name. */
-function BrandHeader({ colors, isDark, name }: { colors: ThemeColors; isDark: boolean; name: string }) {
+function BrandHeader({
+  colors,
+  isDark,
+  name,
+}: {
+  colors: ThemeColors;
+  isDark: boolean;
+  name: string;
+}) {
   return (
     <View style={styles.brandRow}>
       <LinearGradient
-        colors={isDark ? (['#60A5FA', '#2563EB'] as const) : (['#3B82F6', '#1D4ED8'] as const)}
+        colors={
+          isDark
+            ? (["#60A5FA", "#2563EB"] as const)
+            : (["#3B82F6", "#1D4ED8"] as const)
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.logo}
       >
         <Text style={styles.logoText}>QBP</Text>
       </LinearGradient>
-      <Text style={[styles.brandName, { color: colors.text }]} numberOfLines={1}>
+      <Text
+        style={[styles.brandName, { color: colors.text }]}
+        numberOfLines={1}
+      >
         {name}
       </Text>
     </View>
@@ -27,28 +42,38 @@ function BrandHeader({ colors, isDark, name }: { colors: ThemeColors; isDark: bo
 }
 
 const styles = StyleSheet.create({
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   logo: {
     width: 38,
     height: 38,
     borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2563EB',
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#2563EB",
     shadowOpacity: 0.45,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 5,
   },
-  logoText: { color: '#FFFFFF', fontWeight: '900', fontSize: 12.5, letterSpacing: 0.8 },
-  brandName: { fontSize: 18, fontWeight: '800', letterSpacing: 0.3, maxWidth: 210 },
+  logoText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+    fontSize: 12.5,
+    letterSpacing: 0.8,
+  },
+  brandName: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    maxWidth: 210,
+  },
   scanBtn: {
     marginRight: 16,
     width: 38,
     height: 38,
     borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
@@ -73,14 +98,16 @@ export default function TabNavigator() {
         headerStyle: { backgroundColor: colors.card },
         headerTitleStyle: { color: colors.text },
         headerTintColor: colors.text,
-        headerTitleAlign: 'left',
-        headerTitle: () => <BrandHeader colors={colors} isDark={isDark} name={displayName} />,
+        headerTitleAlign: "left",
+        headerTitle: () => (
+          <BrandHeader colors={colors} isDark={isDark} name={displayName} />
+        ),
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: "Home",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -89,11 +116,18 @@ export default function TabNavigator() {
             ? undefined
             : () => (
                 <TouchableOpacity
-                  onPress={() => router.push('/scan')}
+                  onPress={() => router.push("/scan")}
                   hitSlop={8}
-                  style={[styles.scanBtn, { backgroundColor: colors.primary + '1A' }]}
+                  style={[
+                    styles.scanBtn,
+                    { backgroundColor: colors.primary + "1A" },
+                  ]}
                 >
-                  <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
+                  <Ionicons
+                    name="qr-code-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
                 </TouchableOpacity>
               ),
         }}
@@ -101,7 +135,7 @@ export default function TabNavigator() {
       <Tabs.Screen
         name="billing"
         options={{
-          title: 'Billing',
+          title: "Billing",
           // Restaurant mode replaces quick-cart billing with the Tables screen.
           href: isRestaurant ? null : undefined,
           tabBarIcon: ({ color, size }) => (
@@ -112,10 +146,11 @@ export default function TabNavigator() {
       <Tabs.Screen
         name="tables"
         options={{
-          title: 'Tables',
+          title: "Orders",
           href: isRestaurant ? undefined : null,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid-outline" size={size} color={color} />
+            // <Ionicons name="grid-outline" size={size} color={color} />
+            <Ionicons name="receipt-outline" size={size} color={color} />
           ),
         }}
       />
@@ -131,7 +166,7 @@ export default function TabNavigator() {
       <Tabs.Screen
         name="inventory"
         options={{
-          title: 'Stock',
+          title: "Stock",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="layers-outline" size={size} color={color} />
           ),
@@ -140,7 +175,7 @@ export default function TabNavigator() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Reports',
+          title: "Reports",
           // Only the owner sees the Reports tab; href:null hides it for employees.
           href: isOwner ? undefined : null,
           tabBarIcon: ({ color, size }) => (
@@ -151,7 +186,7 @@ export default function TabNavigator() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
+          title: "Settings",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="settings-outline" size={size} color={color} />
           ),
