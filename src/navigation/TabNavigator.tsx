@@ -29,7 +29,7 @@ function BrandHeader({
         end={{ x: 1, y: 1 }}
         style={styles.logo}
       >
-        <Text style={styles.logoText}>QBP</Text>
+        <Text style={styles.logoText}>RG</Text>
       </LinearGradient>
       <Text
         style={[styles.brandName, { color: colors.text }]}

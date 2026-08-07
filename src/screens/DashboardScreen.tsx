@@ -1,10 +1,19 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
-import { useTheme, ThemeColors } from '@/context/ThemeContext';
+import React, { useCallback, useState } from "react";
+// import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Dimensions,
+  TouchableOpacity,
+  TextInput,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
+import { useTheme, ThemeColors } from "@/context/ThemeContext";
 import {
   getProfitSummary,
   getSalesTrend,
@@ -17,24 +26,40 @@ import {
   HourlySales,
   TopProduct,
   TopCustomer,
-} from '@/database/repo';
-import { Product } from '@/types';
-import { formatCurrency } from '@/utils/format';
-import { Card, EmptyState } from '@/components/ui';
+} from "@/database/repo";
+import { Product } from "@/types";
+import { formatCurrency } from "@/utils/format";
+import { Card, EmptyState } from "@/components/ui";
 
-type Period = 7 | 30 | 90;
+// type Period = 7 | 30 | 90;
+// const PERIODS: { value: Period; label: string }[] = [
+//   { value: 7, label: '7 Days' },
+//   { value: 30, label: '30 Days' },
+//   { value: 90, label: '90 Days' },
+// ];
+type Period = number;
 const PERIODS: { value: Period; label: string }[] = [
-  { value: 7, label: '7 Days' },
-  { value: 30, label: '30 Days' },
-  { value: 90, label: '90 Days' },
+  { value: 1, label: "Today" },
+  { value: 7, label: "7 Days" },
+  { value: 30, label: "30 Days" },
+  { value: 90, label: "90 Days" },
 ];
 
-const PIE_COLORS = ['#2563EB', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
-const CHART_W = Dimensions.get('window').width - 32;
+const PIE_COLORS = [
+  "#2563EB",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#06B6D4",
+];
+const CHART_W = Dimensions.get("window").width - 32;
 
 export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
+  // const [period, setPeriod] = useState<Period>(7);
   const [period, setPeriod] = useState<Period>(7);
+  const [customDays, setCustomDays] = useState("");
   const [pl, setPl] = useState<ProfitSummary>({
     revenue: 0,
     cogs: 0,
@@ -69,8 +94,8 @@ export default function DashboardScreen() {
   // Reloads on focus and whenever the period changes.
   useFocusEffect(
     useCallback(() => {
-      load().catch((e) => console.error('Dashboard load error:', e));
-    }, [load])
+      load().catch((e) => console.error("Dashboard load error:", e));
+    }, [load]),
   );
 
   const hasSales = pl.orders > 0;
@@ -79,19 +104,22 @@ export default function DashboardScreen() {
     backgroundGradientFrom: colors.card,
     backgroundGradientTo: colors.card,
     decimalPlaces: 0,
-    color: (o = 1) => (isDark ? `rgba(96,165,250,${o})` : `rgba(37,99,235,${o})`),
+    color: (o = 1) =>
+      isDark ? `rgba(96,165,250,${o})` : `rgba(37,99,235,${o})`,
     labelColor: () => colors.textMuted,
     barPercentage: 0.6,
-    propsForDots: { r: '3' },
+    propsForDots: { r: "3" },
   };
 
   // Show only a few x-axis labels so longer ranges stay readable.
   const trendStep = Math.max(1, Math.ceil(trend.length / 6));
-  const trendLabels = trend.map((d, i) => (i % trendStep === 0 ? d.day.slice(5) : ''));
-  const hourLabels = byHour.map((h) => (h.hour % 3 === 0 ? `${h.hour}` : ''));
+  const trendLabels = trend.map((d, i) =>
+    i % trendStep === 0 ? d.day.slice(5) : "",
+  );
+  const hourLabels = byHour.map((h) => (h.hour % 3 === 0 ? `${h.hour}` : ""));
 
   const pieData = best.map((b, i) => ({
-    name: b.name.length > 12 ? b.name.slice(0, 11) + '…' : b.name,
+    name: b.name.length > 12 ? b.name.slice(0, 11) + "…" : b.name,
     population: b.revenue,
     color: PIE_COLORS[i % PIE_COLORS.length],
     legendFontColor: colors.textMuted,
@@ -99,12 +127,15 @@ export default function DashboardScreen() {
   }));
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView
+      edges={["top"]}
+      style={{ flex: 1, backgroundColor: colors.background }}
+    >
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 36 }}>
         <Text style={[styles.h1, { color: colors.text }]}>Reports</Text>
 
         {/* Period selector */}
-        <View style={styles.periodRow}>
+        {/* <View style={styles.periodRow}>
           {PERIODS.map((p) => (
             <TouchableOpacity
               key={p.value}
@@ -122,36 +153,127 @@ export default function DashboardScreen() {
               </Text>
             </TouchableOpacity>
           ))}
+        </View> */}
+        {/* Period selector */}
+        <View style={styles.periodRow}>
+          {PERIODS.map((p) => (
+            <TouchableOpacity
+              key={p.value}
+              onPress={() => {
+                setPeriod(p.value);
+                setCustomDays("");
+              }}
+              style={[
+                styles.periodBtn,
+                {
+                  backgroundColor:
+                    period === p.value && !customDays
+                      ? colors.primary
+                      : colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color:
+                    period === p.value && !customDays ? "#FFF" : colors.text,
+                  fontWeight: "700",
+                }}
+              >
+                {p.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Custom day range */}
+        <View style={styles.customRow}>
+          <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+            Or check the last
+          </Text>
+          <TextInput
+            value={customDays}
+            onChangeText={(t) => {
+              const digits = t.replace(/[^0-9]/g, "");
+              setCustomDays(digits);
+              const n = parseInt(digits, 10);
+              if (n > 0) setPeriod(n);
+            }}
+            keyboardType="number-pad"
+            placeholder="e.g. 3"
+            placeholderTextColor={colors.textMuted}
+            style={[
+              styles.customInput,
+              {
+                color: colors.text,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              },
+            ]}
+          />
+          <Text style={{ color: colors.textMuted, fontSize: 13 }}>day(s)</Text>
         </View>
 
         {/* Profit & Loss */}
         <Card style={{ marginBottom: 12 }}>
-          <Text style={[styles.cardLabel, { color: colors.textMuted }]}>PROFIT & LOSS</Text>
+          <Text style={[styles.cardLabel, { color: colors.textMuted }]}>
+            PROFIT & LOSS
+          </Text>
           <View style={styles.plMain}>
             <View>
-              <Text style={{ color: colors.textMuted, fontSize: 13 }}>Net Profit</Text>
+              <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+                Net Profit
+              </Text>
               <Text
                 style={{
                   color: pl.profit >= 0 ? colors.success : colors.danger,
                   fontSize: 28,
-                  fontWeight: '800',
+                  fontWeight: "800",
                 }}
               >
                 {formatCurrency(pl.profit)}
               </Text>
             </View>
-            <View style={[styles.marginPill, { backgroundColor: (pl.profit >= 0 ? colors.success : colors.danger) + '22' }]}>
-              <Text style={{ color: pl.profit >= 0 ? colors.success : colors.danger, fontWeight: '800' }}>
+            <View
+              style={[
+                styles.marginPill,
+                {
+                  backgroundColor:
+                    (pl.profit >= 0 ? colors.success : colors.danger) + "22",
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: pl.profit >= 0 ? colors.success : colors.danger,
+                  fontWeight: "800",
+                }}
+              >
                 {pl.marginPct.toFixed(1)}%
               </Text>
-              <Text style={{ color: colors.textMuted, fontSize: 11 }}>margin</Text>
+              <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                margin
+              </Text>
             </View>
           </View>
           <View style={[styles.plRow, { borderTopColor: colors.border }]}>
-            <PlCell label="Revenue" value={formatCurrency(pl.revenue)} colors={colors} />
-            <PlCell label="Cost" value={formatCurrency(pl.cogs)} colors={colors} />
+            <PlCell
+              label="Revenue"
+              value={formatCurrency(pl.revenue)}
+              colors={colors}
+            />
+            <PlCell
+              label="Cost"
+              value={formatCurrency(pl.cogs)}
+              colors={colors}
+            />
             <PlCell label="Orders" value={String(pl.orders)} colors={colors} />
-            <PlCell label="Items" value={String(pl.itemsSold)} colors={colors} />
+            <PlCell
+              label="Items"
+              value={String(pl.itemsSold)}
+              colors={colors}
+            />
           </View>
         </Card>
 
@@ -160,7 +282,10 @@ export default function DashboardScreen() {
         <Card style={styles.chartCard}>
           {hasSales ? (
             <LineChart
-              data={{ labels: trendLabels, datasets: [{ data: trend.map((d) => d.total) }] }}
+              data={{
+                labels: trendLabels,
+                datasets: [{ data: trend.map((d) => d.total) }],
+              }}
               width={CHART_W - 8}
               height={200}
               chartConfig={chartConfig}
@@ -178,7 +303,10 @@ export default function DashboardScreen() {
         <Card style={styles.chartCard}>
           {hasSales ? (
             <BarChart
-              data={{ labels: hourLabels, datasets: [{ data: byHour.map((h) => h.total) }] }}
+              data={{
+                labels: hourLabels,
+                datasets: [{ data: byHour.map((h) => h.total) }],
+              }}
               width={CHART_W - 8}
               height={210}
               chartConfig={chartConfig}
@@ -217,37 +345,67 @@ export default function DashboardScreen() {
         {topCustomers.length === 0 ? (
           <Card>
             <Text style={{ color: colors.textMuted }}>
-              No customer-linked sales in this period yet. Pick a customer on the bill to rank them here.
+              No customer-linked sales in this period yet. Pick a customer on
+              the bill to rank them here.
             </Text>
           </Card>
         ) : (
           topCustomers.map((c, i) => (
             <Card key={c.name + i} style={styles.listRow}>
-              <View style={[styles.rank, { backgroundColor: colors.info + '22' }]}>
-                <Text style={{ color: colors.info, fontWeight: '800' }}>{i + 1}</Text>
+              <View
+                style={[styles.rank, { backgroundColor: colors.info + "22" }]}
+              >
+                <Text style={{ color: colors.info, fontWeight: "800" }}>
+                  {i + 1}
+                </Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '700' }}>{c.name}</Text>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }}>{c.orders} orders</Text>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {c.name}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                  {c.orders} orders
+                </Text>
               </View>
-              <Text style={{ color: colors.success, fontWeight: '800' }}>{formatCurrency(c.total)}</Text>
+              <Text style={{ color: colors.success, fontWeight: "800" }}>
+                {formatCurrency(c.total)}
+              </Text>
             </Card>
           ))
         )}
 
         {/* Dead stock */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 22, marginBottom: 12 }}>
-          <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
-          <Text style={[styles.h2, { color: colors.text, marginTop: 0, marginBottom: 0 }]}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            marginTop: 22,
+            marginBottom: 12,
+          }}
+        >
+          <Ionicons
+            name="alert-circle-outline"
+            size={18}
+            color={colors.warning}
+          />
+          <Text
+            style={[
+              styles.h2,
+              { color: colors.text, marginTop: 0, marginBottom: 0 },
+            ]}
+          >
             Dead Stock
           </Text>
         </View>
-        <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 10 }}>
+        <Text
+          style={{ color: colors.textMuted, fontSize: 13, marginBottom: 10 }}
+        >
           In stock but unsold in the last {period} days.
         </Text>
         {deadStock.length === 0 ? (
           <Card>
-            <Text style={{ color: colors.success, fontWeight: '600' }}>
+            <Text style={{ color: colors.success, fontWeight: "600" }}>
               🎉 Everything is selling — no dead stock!
             </Text>
           </Card>
@@ -255,16 +413,20 @@ export default function DashboardScreen() {
           deadStock.slice(0, 12).map((p) => (
             <Card key={p.id} style={styles.listRow}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '700' }}>{p.name}</Text>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {p.name}
+                </Text>
                 <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                  {p.stock} {p.unit} · {p.category || 'Uncategorized'}
+                  {p.stock} {p.unit} · {p.category || "Uncategorized"}
                 </Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: colors.warning, fontWeight: '700' }}>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={{ color: colors.warning, fontWeight: "700" }}>
                   {formatCurrency(p.buyPrice * p.stock)}
                 </Text>
-                <Text style={{ color: colors.textMuted, fontSize: 11 }}>locked</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                  locked
+                </Text>
               </View>
             </Card>
           ))
@@ -285,20 +447,79 @@ const PlCell = ({
 }) => (
   <View style={{ flex: 1 }}>
     <Text style={{ color: colors.textMuted, fontSize: 11 }}>{label}</Text>
-    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>{value}</Text>
+    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+      {value}
+    </Text>
   </View>
 );
 
 const styles = StyleSheet.create({
-  h1: { fontSize: 24, fontWeight: '800', marginBottom: 14 },
-  h2: { fontSize: 17, fontWeight: '800', marginTop: 22, marginBottom: 12 },
-  periodRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  periodBtn: { flex: 1, paddingVertical: 9, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
-  cardLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 8 },
-  plMain: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  marginPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, alignItems: 'center' },
-  plRow: { flexDirection: 'row', marginTop: 14, paddingTop: 14, borderTopWidth: 1, gap: 6 },
-  chartCard: { paddingHorizontal: 4, paddingVertical: 12, alignItems: 'center' },
-  listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  rank: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  h1: { fontSize: 24, fontWeight: "800", marginBottom: 14 },
+  h2: { fontSize: 17, fontWeight: "800", marginTop: 22, marginBottom: 12 },
+  periodRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+  // periodBtn: { flex: 1, paddingVertical: 9, borderRadius: 20, borderWidth: 1, alignItems: 'center' },
+  periodBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  customRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  customInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    width: 70,
+    textAlign: "center",
+    fontWeight: "700",
+  },
+  cardLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  plMain: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  marginPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  plRow: {
+    flexDirection: "row",
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    gap: 6,
+  },
+  chartCard: {
+    paddingHorizontal: 4,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 10,
+  },
+  rank: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
