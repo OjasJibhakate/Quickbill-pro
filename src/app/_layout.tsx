@@ -1,17 +1,36 @@
-import 'react-native-gesture-handler';
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from '@/context/AuthContext';
-import { ThemeProvider, useTheme } from '@/context/ThemeContext';
-import { StoreProvider } from '@/context/StoreContext';
-import { DialogHost } from '@/components/Dialog';
-import { initAutoSync } from '@/utils/autosync';
+// import 'react-native-gesture-handler';
+// import { useEffect } from 'react';
+import "react-native-gesture-handler";
+import { useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AuthProvider } from "@/context/AuthContext";
+import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { StoreProvider } from "@/context/StoreContext";
+import { DialogHost } from "@/components/Dialog";
+import { initAutoSync } from "@/utils/autosync";
 
+// function RootStack() {
+//   const { isDark, colors } = useTheme();
+
+//   // Back up to Google Drive automatically after every change (push-only).
+//   useEffect(() => {
+//     initAutoSync();
+//   }, []);
 function RootStack() {
   const { isDark, colors } = useTheme();
+  const router = useRouter();
+
+  // Show onboarding on very first launch only.
+  useEffect(() => {
+    AsyncStorage.getItem("rasoi_onboarding_done").then((done) => {
+      if (!done) router.replace("/onboarding");
+    });
+  }, []);
 
   // Back up to Google Drive automatically after every change (push-only).
   useEffect(() => {
@@ -19,7 +38,7 @@ function RootStack() {
   }, []);
   return (
     <>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -31,23 +50,69 @@ function RootStack() {
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="sales" options={{ headerShown: true, title: 'Sales History' }} />
-        <Stack.Screen name="table/[id]" options={{ headerShown: true, title: 'Table' }} />
-        <Stack.Screen name="sale/[id]" options={{ headerShown: true, title: 'Sale Details' }} />
-        <Stack.Screen name="customers" options={{ headerShown: true, title: 'Customers & Udhaar' }} />
-        <Stack.Screen name="customer/[id]" options={{ headerShown: true, title: 'Customer' }} />
-        <Stack.Screen name="users" options={{ headerShown: true, title: 'Staff & PINs' }} />
-        <Stack.Screen name="shift" options={{ headerShown: true, title: 'Shift' }} />
-        <Stack.Screen name="shift/[id]" options={{ headerShown: true, title: 'Z-Report' }} />
-        <Stack.Screen name="activity" options={{ headerShown: true, title: 'Activity Log' }} />
-        <Stack.Screen name="suppliers" options={{ headerShown: true, title: 'Suppliers' }} />
-        <Stack.Screen name="supplier/[id]" options={{ headerShown: true, title: 'Supplier' }} />
-        <Stack.Screen name="stock-in" options={{ headerShown: true, title: 'Stock In' }} />
-        <Stack.Screen name="expiring" options={{ headerShown: true, title: 'Expiring Stock' }} />
+        <Stack.Screen
+          name="sales"
+          options={{ headerShown: true, title: "Sales History" }}
+        />
+        <Stack.Screen
+          name="table/[id]"
+          options={{ headerShown: true, title: "Table" }}
+        />
+        <Stack.Screen
+          name="sale/[id]"
+          options={{ headerShown: true, title: "Sale Details" }}
+        />
+        <Stack.Screen
+          name="customers"
+          options={{ headerShown: true, title: "Customers & Udhaar" }}
+        />
+        <Stack.Screen
+          name="customer/[id]"
+          options={{ headerShown: true, title: "Customer" }}
+        />
+        <Stack.Screen
+          name="users"
+          options={{ headerShown: true, title: "Staff & PINs" }}
+        />
+        <Stack.Screen
+          name="shift"
+          options={{ headerShown: true, title: "Shift" }}
+        />
+        <Stack.Screen
+          name="shift/[id]"
+          options={{ headerShown: true, title: "Z-Report" }}
+        />
+        <Stack.Screen
+          name="activity"
+          options={{ headerShown: true, title: "Activity Log" }}
+        />
+        <Stack.Screen
+          name="suppliers"
+          options={{ headerShown: true, title: "Suppliers" }}
+        />
+        <Stack.Screen
+          name="supplier/[id]"
+          options={{ headerShown: true, title: "Supplier" }}
+        />
+        <Stack.Screen
+          name="stock-in"
+          options={{ headerShown: true, title: "Stock In" }}
+        />
+        <Stack.Screen
+          name="expiring"
+          options={{ headerShown: true, title: "Expiring Stock" }}
+        />
         <Stack.Screen name="scan" options={{ headerShown: false }} />
         <Stack.Screen name="invoice/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="export" options={{ headerShown: true, title: 'Export to Excel' }} />
-        <Stack.Screen name="backup" options={{ headerShown: true, title: 'Backup & Restore' }} />
+        <Stack.Screen
+          name="export"
+          options={{ headerShown: true, title: "Export to Excel" }}
+        />
+        <Stack.Screen
+          name="backup"
+          options={{ headerShown: true, title: "Backup & Restore" }}
+        />
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       </Stack>
       <DialogHost />
     </>

@@ -32,6 +32,18 @@ import { computeTax } from "@/utils/tax";
 //   settleTable,
 //   getOpenShift,
 // } from '@/database/repo';
+// import {
+//   getProducts,
+//   getProductByBarcode,
+//   getTable,
+//   getTableOrder,
+//   addToTableOrder,
+//   setTableOrderQty,
+//   clearTableOrder,
+//   settleTable,
+//   getOpenShift,
+//   deleteEmptyP2POrder,
+// } from "@/database/repo";
 import {
   getProducts,
   getProductByBarcode,
@@ -43,7 +55,8 @@ import {
   settleTable,
   getOpenShift,
   deleteEmptyP2POrder,
-} from "@/database/repo";
+  findOrCreateCustomer,
+} from '@/database/repo';
 import { Product, TableOrderLine, PaymentMethod } from "@/types";
 import { formatCurrency } from "@/utils/format";
 import { Button } from "@/components/ui";
@@ -172,15 +185,71 @@ export default function TableOrderScreen() {
     ]);
   };
 
+  // const settle = async (method: PaymentMethod) => {
+  //   if (!user) return;
+  //   setBusy(true);
+  //   try {
+  //     const saleId = await settleTable({
+  //       tableId,
+  //       discountAmount: discountValue,
+  //       paymentMethod: method,
+  //       userId: user.id,
+  //       customerName: tableName,
+  //       shiftId,
+  //       serviceChargeAmount: bill.serviceCharge,
+  //       taxAmount: bill.tax,
+  //     });
+  //     setPayOpen(false);
+  //     setBusy(false);
+  //     if (!saleId) {
+  //       router.back();
+  //       return;
+  //     }
+  //     dialog.alert(
+  //       "Table settled",
+  //       `${tableName} · ${formatCurrency(grandTotal)} collected.`,
+  //       [
+  //         {
+  //           text: "Share bill",
+  //           onPress: () => {
+  //             router.replace({
+  //               pathname: "/invoice/[id]",
+  //               params: { id: saleId },
+  //             });
+  //           },
+  //         },
+  //         { text: "Done", style: "cancel", onPress: () => router.back() },
+  //       ],
+  //     );
+  //   } catch (e) {
+  //     console.error(e);
+  //     setBusy(false);
+  //     dialog.alert("Error", "Could not settle the table.");
+  //   }
+  // };
   const settle = async (method: PaymentMethod) => {
     if (!user) return;
     setBusy(true);
     try {
+      // For P2P + Pay Later: auto-create (or find) the customer in the
+      // Customers & Udhaar section using the name/phone captured at P2P entry.
+      let resolvedCustomerId: string | null = null;
+      if (method === 'credit' && orderKind === 'p2p') {
+        const table = await getTable(tableId);
+        if (table?.name) {
+          resolvedCustomerId = await findOrCreateCustomer(
+            table.name,
+            table.customerPhone ?? ''
+          );
+        }
+      }
+
       const saleId = await settleTable({
         tableId,
         discountAmount: discountValue,
         paymentMethod: method,
         userId: user.id,
+        customerId: resolvedCustomerId,
         customerName: tableName,
         shiftId,
         serviceChargeAmount: bill.serviceCharge,
@@ -192,26 +261,25 @@ export default function TableOrderScreen() {
         router.back();
         return;
       }
-      dialog.alert(
-        "Table settled",
-        `${tableName} · ${formatCurrency(grandTotal)} collected.`,
-        [
-          {
-            text: "Share bill",
-            onPress: () => {
-              router.replace({
-                pathname: "/invoice/[id]",
-                params: { id: saleId },
-              });
-            },
+
+      const msg =
+        method === 'credit'
+          ? `${tableName} · ₹${formatCurrency(grandTotal)} added to Udhaar.`
+          : `${tableName} · ${formatCurrency(grandTotal)} collected.`;
+
+      dialog.alert('Order settled', msg, [
+        {
+          text: 'Share bill',
+          onPress: () => {
+            router.replace({ pathname: '/invoice/[id]', params: { id: saleId } });
           },
-          { text: "Done", style: "cancel", onPress: () => router.back() },
-        ],
-      );
+        },
+        { text: 'Done', style: 'cancel', onPress: () => router.back() },
+      ]);
     } catch (e) {
       console.error(e);
       setBusy(false);
-      dialog.alert("Error", "Could not settle the table.");
+      dialog.alert('Error', 'Could not settle the order.');
     }
   };
 
@@ -457,14 +525,15 @@ export default function TableOrderScreen() {
               Select payment method
             </Text>
             <ScrollView>
-              {(["cash", "upi", "card"] as PaymentMethod[]).map((m) => (
+              {/* {(["cash", "upi", "card"] as PaymentMethod[]).map((m) => ( */}
+              {(['cash', 'upi', 'card', 'credit'] as PaymentMethod[]).map((m) => (
                 <TouchableOpacity
                   key={m}
                   disabled={busy}
                   onPress={() => settle(m)}
                   style={[styles.payOption, { borderColor: colors.border }]}
                 >
-                  <Ionicons
+                  {/* <Ionicons
                     name={
                       m === "cash"
                         ? "cash-outline"
@@ -483,6 +552,23 @@ export default function TableOrderScreen() {
                     }}
                   >
                     {m}
+                  </Text> */}
+                  <Ionicons
+                    name={
+                      m === 'cash' ? 'cash-outline'
+                      : m === 'upi' ? 'phone-portrait-outline'
+                      : m === 'credit' ? 'time-outline'
+                      : 'card-outline'
+                    }
+                    size={22}
+                    color={m === 'credit' ? colors.warning : colors.primary}
+                  />
+                  <Text style={{
+                    color: m === 'credit' ? colors.warning : colors.text,
+                    fontWeight: '600',
+                    textTransform: 'uppercase'
+                  }}>
+                    {m === 'credit' ? 'Pay Later (Udhaar)' : m}
                   </Text>
                 </TouchableOpacity>
               ))}
