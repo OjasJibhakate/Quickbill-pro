@@ -10,20 +10,21 @@
  * or locally: APP_FLAVOR=restaurant npx expo start
  */
 module.exports = ({ config }) => {
-  const flavor = process.env.APP_FLAVOR === 'restaurant' ? 'restaurant' : 'kirana';
+  const flavor =
+    process.env.APP_FLAVOR === "restaurant" ? "restaurant" : "kirana";
 
-  if (flavor === 'restaurant') {
+  if (flavor === "restaurant") {
     return {
       ...config,
-      name: 'QuickServe POS',
-      android: { ...config.android, package: 'com.quickbill.resto' },
-      ios: { ...config.ios, bundleIdentifier: 'com.quickbill.resto' },
-      extra: { ...config.extra, appMode: 'restaurant' },
+      name: "QuickServe POS",
+      android: { ...config.android, package: "com.quickbill.resto" },
+      ios: { ...config.ios, bundleIdentifier: "com.quickbill.resto" },
+      extra: { ...config.extra, appMode: "restaurant" },
     };
   }
 
   return {
     ...config,
-    extra: { ...config.extra, appMode: 'kirana' },
+    extra: { ...config.extra, appMode: "kirana" },
   };
 };

@@ -403,6 +403,8 @@ export interface CheckoutInput {
   serviceChargeAmount?: number;
   /** GST added on top of (subtotal − discount + service charge); default 0. */
   taxAmount?: number;
+  orderType?: string;
+
 }
 
 /**
@@ -424,10 +426,31 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
   const now = new Date().toISOString();
 
   await db.withTransactionAsync(async () => {
+    // await db.runAsync(
+    //   `INSERT INTO sales
+    //      (id, customerId, userId, shiftId, totalAmount, discountAmount, finalAmount, paymentMethod, date, customerName, customerPhone, customerAddress, serviceCharge, taxAmount)
+    //      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    //   [
+    //     saleId,
+    //     input.customerId ?? null,
+    //     input.userId,
+    //     input.shiftId ?? null,
+    //     total,
+    //     discount,
+    //     final,
+    //     input.paymentMethod,
+    //     now,
+    //     input.customerName?.trim() || null,
+    //     input.customerPhone?.trim() || null,
+    //     input.customerAddress?.trim() || null,
+    //     serviceCharge,
+    //     tax,
+    //   ]
+    // );
     await db.runAsync(
       `INSERT INTO sales
-         (id, customerId, userId, shiftId, totalAmount, discountAmount, finalAmount, paymentMethod, date, customerName, customerPhone, customerAddress, serviceCharge, taxAmount)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, customerId, userId, shiftId, totalAmount, discountAmount, finalAmount, paymentMethod, date, customerName, customerPhone, customerAddress, serviceCharge, taxAmount, orderType)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleId,
         input.customerId ?? null,
@@ -443,6 +466,7 @@ export const checkout = async (input: CheckoutInput): Promise<string> => {
         input.customerAddress?.trim() || null,
         serviceCharge,
         tax,
+        input.orderType ?? 'table',
       ]
     );
 
@@ -490,6 +514,18 @@ export const getTables = async (): Promise<DiningTable[]> => {
 };
 
 /** Tables plus a summary (item count + running total) of each open order. */
+// export const getTablesWithOrders = async (): Promise<TableWithOrder[]> => {
+//   const db = await getDB();
+//   return db.getAllAsync<TableWithOrder>(
+//     `SELECT t.id, t.name, t.sortOrder,
+//             COALESCE(SUM(o.quantity), 0) AS itemCount,
+//             COALESCE(SUM(o.quantity * o.price), 0) AS orderTotal
+//        FROM dining_tables t
+//        LEFT JOIN table_orders o ON o.tableId = t.id
+//        GROUP BY t.id, t.name, t.sortOrder
+//        ORDER BY t.sortOrder ASC, t.name ASC`
+//   );
+// };
 export const getTablesWithOrders = async (): Promise<TableWithOrder[]> => {
   const db = await getDB();
   return db.getAllAsync<TableWithOrder>(
@@ -498,19 +534,70 @@ export const getTablesWithOrders = async (): Promise<TableWithOrder[]> => {
             COALESCE(SUM(o.quantity * o.price), 0) AS orderTotal
        FROM dining_tables t
        LEFT JOIN table_orders o ON o.tableId = t.id
+       WHERE COALESCE(t.type, 'table') = 'table'
        GROUP BY t.id, t.name, t.sortOrder
        ORDER BY t.sortOrder ASC, t.name ASC`
   );
 };
 
+// export const getTable = async (id: string): Promise<DiningTable | null> => {
+//   const db = await getDB();
+//   return (
+//     (await db.getFirstAsync<DiningTable>(
+//       'SELECT id, name, sortOrder FROM dining_tables WHERE id = ?',
+//       [id]
+//     )) ?? null
+//   );
+// };
 export const getTable = async (id: string): Promise<DiningTable | null> => {
   const db = await getDB();
   return (
     (await db.getFirstAsync<DiningTable>(
-      'SELECT id, name, sortOrder FROM dining_tables WHERE id = ?',
+      'SELECT id, name, sortOrder, type, customerPhone FROM dining_tables WHERE id = ?',
       [id]
     )) ?? null
   );
+};
+
+/** Creates a virtual "table" row representing a P2P (no table) order. */
+export const createP2POrder = async (name: string, phone: string): Promise<string> => {
+  const db = await getDB();
+  const id = newId('p2p');
+  const now = nowIso();
+  await db.runAsync(
+    `INSERT INTO dining_tables (id, name, sortOrder, type, customerPhone, createdAt, updatedAt)
+       VALUES (?, ?, 0, 'p2p', ?, ?, ?)`,
+    [id, name.trim(), phone.trim() || null, now, now]
+  );
+  return id;
+};
+
+/** P2P orders that have items but haven't been settled yet — resumable list. */
+export const getOpenP2POrders = async (): Promise<TableWithOrder[]> => {
+  const db = await getDB();
+  return db.getAllAsync<TableWithOrder>(
+    `SELECT t.id, t.name, t.sortOrder, t.type, t.customerPhone,
+            COALESCE(SUM(o.quantity), 0) AS itemCount,
+            COALESCE(SUM(o.quantity * o.price), 0) AS orderTotal
+       FROM dining_tables t
+       JOIN table_orders o ON o.tableId = t.id
+       WHERE t.type = 'p2p'
+       GROUP BY t.id, t.name, t.sortOrder, t.type, t.customerPhone
+       HAVING itemCount > 0
+       ORDER BY t.updatedAt DESC`
+  );
+};
+
+/** Deletes an empty (no items) P2P row — called when one is abandoned. */
+export const deleteEmptyP2POrder = async (id: string): Promise<void> => {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM table_orders WHERE tableId = ?',
+    [id]
+  );
+  if ((row?.c ?? 0) === 0) {
+    await db.runAsync("DELETE FROM dining_tables WHERE id = ? AND type = 'p2p'", [id]);
+  }
 };
 
 export const addTable = async (name: string): Promise<string> => {
@@ -623,9 +710,52 @@ export interface SettleTableInput {
  * Turns a table's open order into a real sale (honouring the prices shown on
  * the order), then frees the table. Returns the sale id, or null if empty.
  */
+// export const settleTable = async (input: SettleTableInput): Promise<string | null> => {
+//   const order = await getTableOrder(input.tableId);
+//   if (order.length === 0) return null;
+//   const products = await getProducts();
+//   const byId = new Map(products.map((p) => [p.id, p]));
+//   const items: CartItem[] = order.map((o) => {
+//     const base = byId.get(o.productId);
+//     const product: Product = base
+//       ? { ...base, sellPrice: o.price }
+//       : {
+//           id: o.productId,
+//           name: o.name,
+//           sellPrice: o.price,
+//           buyPrice: 0,
+//           stock: 0,
+//           unit: 'pcs',
+//           barcode: null,
+//           expiryDate: null,
+//           category: null,
+//           maxDiscount: null,
+//           trackStock: 0,
+//         };
+//     return { product, quantity: o.quantity };
+//   });
+//   const saleId = await checkout({
+//     items,
+//     discountAmount: input.discountAmount,
+//     paymentMethod: input.paymentMethod,
+//     userId: input.userId,
+//     customerId: input.customerId ?? null,
+//     customerName: input.customerName ?? null,
+//     customerPhone: input.customerPhone ?? null,
+//     shiftId: input.shiftId ?? null,
+//     serviceChargeAmount: input.serviceChargeAmount ?? 0,
+//     taxAmount: input.taxAmount ?? 0,
+//   });
+//   await clearTableOrder(input.tableId);
+//   return saleId;
+// };
 export const settleTable = async (input: SettleTableInput): Promise<string | null> => {
   const order = await getTableOrder(input.tableId);
   if (order.length === 0) return null;
+
+  const table = await getTable(input.tableId);
+  const isP2P = table?.type === 'p2p';
+
   const products = await getProducts();
   const byId = new Map(products.map((p) => [p.id, p]));
   const items: CartItem[] = order.map((o) => {
@@ -647,19 +777,29 @@ export const settleTable = async (input: SettleTableInput): Promise<string | nul
         };
     return { product, quantity: o.quantity };
   });
+
   const saleId = await checkout({
     items,
     discountAmount: input.discountAmount,
     paymentMethod: input.paymentMethod,
     userId: input.userId,
     customerId: input.customerId ?? null,
-    customerName: input.customerName ?? null,
-    customerPhone: input.customerPhone ?? null,
+    customerName: isP2P ? table?.name ?? null : input.customerName ?? null,
+    customerPhone: isP2P ? table?.customerPhone ?? null : input.customerPhone ?? null,
     shiftId: input.shiftId ?? null,
     serviceChargeAmount: input.serviceChargeAmount ?? 0,
     taxAmount: input.taxAmount ?? 0,
+    orderType: isP2P ? 'p2p' : 'table',
   });
+
   await clearTableOrder(input.tableId);
+
+  // P2P orders are single-use — the virtual row is discarded once settled.
+  if (isP2P) {
+    const db = await getDB();
+    await db.runAsync('DELETE FROM dining_tables WHERE id = ?', [input.tableId]);
+  }
+
   return saleId;
 };
 

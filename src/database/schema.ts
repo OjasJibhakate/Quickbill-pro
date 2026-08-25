@@ -234,6 +234,7 @@ const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
   await addColumnIfMissing('sales', 'customerName', 'TEXT');
   await addColumnIfMissing('sales', 'customerPhone', 'TEXT');
   await addColumnIfMissing('sales', 'customerAddress', 'TEXT');
+  
 
   // Tax & service charge added on top of the bill (GST additive, restaurant
   // service charge). Stored so the invoice can break them out exactly.
@@ -261,6 +262,13 @@ const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
   await addColumnIfMissing('customers', 'updatedAt', 'TEXT');
   await addColumnIfMissing('suppliers', 'updatedAt', 'TEXT');
   await addColumnIfMissing('users', 'updatedAt', 'TEXT');
+
+
+  //added
+  await addColumnIfMissing('dining_tables', 'type', "TEXT DEFAULT 'table'");
+  await addColumnIfMissing('dining_tables', 'customerPhone', 'TEXT');
+
+  await addColumnIfMissing('sales', 'orderType', "TEXT DEFAULT 'table'");
 
   const nowTs = new Date().toISOString();
   for (const t of ['products', 'customers', 'suppliers', 'users']) {
