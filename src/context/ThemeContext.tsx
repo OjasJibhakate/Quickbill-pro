@@ -7,15 +7,23 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export interface ThemeColors {
   background: string;
   card: string;
+  /** Slightly raised surface for grouped rows inside a card (e.g. list rows). */
+  surface: string;
   text: string;
   textMuted: string;
   border: string;
   primary: string;
+  primaryTint: string; // primary at low opacity, precomputed for chips/icons
   primaryText: string;
   success: string;
+  successTint: string;
   danger: string;
+  dangerTint: string;
   warning: string;
+  warningTint: string;
   info: string;
+  infoTint: string;
+  shadow: string;
 }
 
 interface ThemeContextType {
@@ -27,32 +35,50 @@ interface ThemeContextType {
 
 const STORAGE_KEY = 'qbp_theme_mode';
 
+// Shared spacing/radius tokens so every screen uses the same rhythm.
+export const radius = { sm: 10, md: 14, lg: 18, xl: 24, pill: 999 };
+export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28 };
+
 const lightColors: ThemeColors = {
-  background: '#F4F5F7',
+  background: '#F6F7FB',
   card: '#FFFFFF',
-  text: '#1A1A1A',
+  surface: '#F1F3F8',
+  text: '#14161B',
   textMuted: '#6B7280',
-  border: '#E5E7EB',
+  border: '#EAECF1',
   primary: '#2563EB',
+  primaryTint: '#2563EB1A',
   primaryText: '#FFFFFF',
-  success: '#10B981',
-  danger: '#EF4444',
-  warning: '#F59E0B',
-  info: '#0EA5E9',
+  success: '#0E9F6E',
+  successTint: '#0E9F6E1F',
+  danger: '#E11D48',
+  dangerTint: '#E11D481F',
+  warning: '#D97706',
+  warningTint: '#D977061F',
+  info: '#0284C7',
+  infoTint: '#0284C71F',
+  shadow: 'rgba(20, 22, 27, 0.08)',
 };
 
 const darkColors: ThemeColors = {
-  background: '#0F1115',
-  card: '#1A1D23',
-  text: '#F3F4F6',
-  textMuted: '#9CA3AF',
-  border: '#2A2E37',
-  primary: '#60A5FA',
-  primaryText: '#0F1115',
+  background: '#0B0D12',
+  card: '#161922',
+  surface: '#1D2029',
+  text: '#F5F6FA',
+  textMuted: '#9AA1B1',
+  border: '#262A35',
+  primary: '#5B9CFF',
+  primaryTint: '#5B9CFF26',
+  primaryText: '#0B0D12',
   success: '#34D399',
-  danger: '#F87171',
+  successTint: '#34D39926',
+  danger: '#FB7185',
+  dangerTint: '#FB718526',
   warning: '#FBBF24',
+  warningTint: '#FBBF2426',
   info: '#38BDF8',
+  infoTint: '#38BDF826',
+  shadow: 'rgba(0, 0, 0, 0.45)',
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);

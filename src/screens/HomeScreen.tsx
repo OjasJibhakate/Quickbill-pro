@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { useStore } from '@/context/StoreContext';
 import { useReload } from '@/hooks/useReload';
 import {
   getHomeStats,
@@ -16,11 +24,90 @@ import {
 } from '@/database/repo';
 import { HomeStats, Product } from '@/types';
 import { formatCurrency, formatDateTime } from '@/utils/format';
-import { Card } from '@/components/ui';
+import { Card, SectionHeader, Badge, EmptyState } from '@/components/ui';
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+const KPICard: React.FC<{
+  label: string;
+  value: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  iconBg: string;
+  iconColor: string;
+  onPress?: () => void;
+  trend?: string;
+}> = ({ label, value, icon, iconBg, iconColor, onPress, trend }) => {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      activeOpacity={onPress ? 0.85 : 1}
+      onPress={onPress}
+      style={[
+        styles.kpiCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          ...cardShadow,
+        },
+      ]}
+    >
+      <View style={[styles.kpiIcon, { backgroundColor: iconBg }]}>
+        <Ionicons name={icon} size={20} color={iconColor} />
+      </View>
+      <Text style={[styles.kpiValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[styles.kpiLabel, { color: colors.textMuted }]}>{label}</Text>
+      {trend ? (
+        <Text style={{ color: colors.success, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+          {trend}
+        </Text>
+      ) : null}
+    </TouchableOpacity>
+  );
+};
+
+// ─── Quick Action Button ──────────────────────────────────────────────────────
+
+const QuickAction: React.FC<{
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  bg: string;
+  onPress: () => void;
+}> = ({ label, icon, color, bg, onPress }) => {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      onPress={onPress}
+      style={[styles.quickAction, { backgroundColor: colors.card, borderColor: colors.border, ...cardShadow }]}
+    >
+      <View style={[styles.quickActionIcon, { backgroundColor: bg }]}>
+        <Ionicons name={icon} size={22} color={color} />
+      </View>
+      <Text style={[styles.quickActionLabel, { color: colors.text }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
+
+// ─── Shadow helper ────────────────────────────────────────────────────────────
+
+const cardShadow = Platform.select({
+  web: { boxShadow: '0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.03)' } as any,
+  default: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.07,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const { displayName } = useStore();
   const router = useRouter();
 
   const [stats, setStats] = useState<HomeStats>({
@@ -49,249 +136,434 @@ export default function HomeScreen() {
     setShiftOpen(!!shift);
   });
 
-  const StatCard = ({
-    label,
-    value,
-    color,
-    icon,
-    onPress,
-  }: {
-    label: string;
-    value: string;
-    color: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    onPress?: () => void;
-  }) => {
-    const content = (
-      <>
-        <Ionicons name={icon} size={22} color={color} />
-        <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-        <Text style={[styles.statLabel, { color: colors.textMuted }]}>{label}</Text>
-        {onPress && (
-          <Ionicons
-            name="chevron-forward"
-            size={14}
-            color={colors.textMuted}
-            style={styles.statChevron}
-          />
-        )}
-      </>
-    );
-    if (!onPress) return <Card style={styles.statCard}>{content}</Card>;
-    return (
-      <TouchableOpacity style={styles.statCard} activeOpacity={0.7} onPress={onPress}>
-        <Card style={styles.statCardInner}>{content}</Card>
-      </TouchableOpacity>
-    );
-  };
+  const todayStr = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  const payMethodColor = (m: string) =>
+    m === 'cash' ? '#22C55E'
+    : m === 'upi' ? '#2563EB'
+    : m === 'card' ? '#8B5CF6'
+    : '#F97316';
 
   return (
     <SafeAreaView edges={[]} style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-        <View style={styles.greetRow}>
-          <View>
-            <Text style={[styles.greeting, { color: colors.text }]}>
-              Hello, {user?.name} 👋
-            </Text>
-            <Text style={[styles.date, { color: colors.textMuted }]}>
-              {new Date().toDateString()}
-            </Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.storeName, { color: colors.text }]}>{displayName}</Text>
+            <Text style={[styles.dateText, { color: colors.textMuted }]}>{todayStr}</Text>
           </View>
-          <View style={[styles.roleBadge, { backgroundColor: colors.primary + '22' }]}>
-            <Text style={{ color: colors.primary, fontWeight: '700', textTransform: 'capitalize' }}>
-              {user?.role}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity
+              onPress={() => router.push('/shift')}
+              style={[
+                styles.shiftChip,
+                {
+                  backgroundColor: shiftOpen ? '#22C55E15' : colors.border + '44',
+                  borderColor: shiftOpen ? '#22C55E44' : colors.border,
+                },
+              ]}
+            >
+              <View style={[styles.shiftDot, { backgroundColor: shiftOpen ? '#22C55E' : colors.textMuted }]} />
+              <Text style={{ color: shiftOpen ? '#22C55E' : colors.textMuted, fontSize: 12, fontWeight: '700' }}>
+                {shiftOpen ? 'Shift Open' : 'No Shift'}
+              </Text>
+            </TouchableOpacity>
+            <View style={[styles.avatar, { backgroundColor: '#2563EB' }]}>
+              <Text style={styles.avatarText}>
+                {user?.name?.charAt(0).toUpperCase() ?? 'U'}
+              </Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.statsGrid}>
-          <StatCard label="Today's Sales" value={formatCurrency(stats.todaySales)} color={colors.success} icon="cash-outline" />
-          <StatCard
-            label="Today's Orders"
-            value={String(stats.todayOrders)}
-            color={colors.primary}
-            icon="receipt-outline"
-            onPress={() => router.push({ pathname: '/sales', params: { filter: 'today' } })}
-          />
-          <StatCard
-            label="Low Stock"
-            value={String(stats.lowStock)}
-            color={colors.danger}
-            icon="alert-circle-outline"
-            onPress={() => router.push({ pathname: '/inventory', params: { filter: 'low' } })}
-          />
-          <StatCard
-            label="Products"
-            value={String(stats.totalProducts)}
-            color={colors.info}
-            icon="cube-outline"
-            onPress={() => router.push('/products')}
-          />
-        </View>
+        <View style={styles.body}>
 
-        <Text style={[styles.section, { color: colors.text }]}>Quick Actions</Text>
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.action, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/billing')}
-          >
-            <Ionicons name="add-circle-outline" size={24} color="#FFF" />
-            <Text style={styles.actionText}>New Bill</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.action, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
-            onPress={() => router.push('/products')}
-          >
-            <Ionicons name="cube-outline" size={24} color={colors.text} />
-            <Text style={[styles.actionText, { color: colors.text }]}>Add Product</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity onPress={() => router.push('/customers')}>
-          <Card style={styles.udhaarCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-              <View style={[styles.udhaarIcon, { backgroundColor: colors.primary + '22' }]}>
-                <Ionicons name="people-outline" size={22} color={colors.primary} />
+          {/* ── Today's Sales Hero ──────────────────────────────────────── */}
+          <View style={[styles.heroCard, { backgroundColor: '#2563EB' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View>
+                <Text style={styles.heroLabel}>Today's Revenue</Text>
+                <Text style={styles.heroValue}>{formatCurrency(stats.todaySales)}</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '700' }} numberOfLines={1}>
-                  Customers & Udhaar
-                </Text>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>
-                  Total outstanding
-                </Text>
+              <View style={styles.heroIconCircle}>
+                <Ionicons name="trending-up" size={22} color="#2563EB" />
               </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <Text
-                style={{
-                  color: outstanding > 0 ? colors.danger : colors.success,
-                  fontWeight: '800',
-                  fontSize: 16,
-                }}
+            <View style={styles.heroFooter}>
+              <View style={styles.heroStat}>
+                <Ionicons name="receipt-outline" size={14} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.heroStatText}>{stats.todayOrders} orders today</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: '/sales', params: { filter: 'today' } })}
+                style={styles.heroBtn}
               >
+                <Text style={{ color: '#2563EB', fontSize: 12, fontWeight: '800' }}>View All</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── KPI Grid ────────────────────────────────────────────────── */}
+          <View style={styles.kpiGrid}>
+            <KPICard
+              label="Orders Today"
+              value={String(stats.todayOrders)}
+              icon="receipt-outline"
+              iconBg="#2563EB15"
+              iconColor="#2563EB"
+              onPress={() => router.push({ pathname: '/sales', params: { filter: 'today' } })}
+            />
+            <KPICard
+              label="Low Stock"
+              value={String(stats.lowStock)}
+              icon="alert-circle-outline"
+              iconBg={stats.lowStock > 0 ? '#EF444415' : '#22C55E15'}
+              iconColor={stats.lowStock > 0 ? '#EF4444' : '#22C55E'}
+              onPress={() => router.push({ pathname: '/inventory', params: { filter: 'low' } })}
+            />
+            <KPICard
+              label="Menu Items"
+              value={String(stats.totalProducts)}
+              icon="cube-outline"
+              iconBg="#8B5CF615"
+              iconColor="#8B5CF6"
+              onPress={() => router.push('/products')}
+            />
+            <KPICard
+              label="Udhaar Due"
+              value={formatCurrency(outstanding)}
+              icon="people-outline"
+              iconBg={outstanding > 0 ? '#F5950B15' : '#22C55E15'}
+              iconColor={outstanding > 0 ? '#F59E0B' : '#22C55E'}
+              onPress={() => router.push('/customers')}
+            />
+          </View>
+
+          {/* ── Quick Actions ────────────────────────────────────────────── */}
+          <SectionHeader title="Quick Actions" />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickActionsRow}
+          >
+            <QuickAction
+              label="New Order"
+              icon="add-circle"
+              color="#2563EB"
+              bg="#2563EB15"
+              onPress={() => router.push('/(tabs)/tables')}
+            />
+            <QuickAction
+              label="Tables"
+              icon="grid-outline"
+              color="#10B981"
+              bg="#10B98115"
+              onPress={() => router.push('/tables-list')}
+            />
+            <QuickAction
+              label="Menu"
+              icon="fast-food-outline"
+              color="#F59E0B"
+              bg="#F59E0B15"
+              onPress={() => router.push('/products')}
+            />
+            <QuickAction
+              label="Reports"
+              icon="stats-chart-outline"
+              color="#8B5CF6"
+              bg="#8B5CF615"
+              onPress={() => router.push('/(tabs)/dashboard')}
+            />
+            <QuickAction
+              label="Customers"
+              icon="people-outline"
+              color="#EF4444"
+              bg="#EF444415"
+              onPress={() => router.push('/customers')}
+            />
+          </ScrollView>
+
+          {/* ── Shift & Udhaar ──────────────────────────────────────────── */}
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => router.push('/shift')}
+              style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1, ...cardShadow }]}
+            >
+              <View style={[styles.infoCardIcon, { backgroundColor: shiftOpen ? '#22C55E15' : colors.border + '44' }]}>
+                <Ionicons name="time-outline" size={20} color={shiftOpen ? '#22C55E' : colors.textMuted} />
+              </View>
+              <Text style={[styles.infoCardLabel, { color: colors.textMuted }]}>Shift</Text>
+              <Text style={[styles.infoCardValue, { color: shiftOpen ? '#22C55E' : colors.textMuted }]}>
+                {shiftOpen ? 'Open' : 'Closed'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/customers')}
+              style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border, flex: 1, ...cardShadow }]}
+            >
+              <View style={[styles.infoCardIcon, { backgroundColor: outstanding > 0 ? '#F59E0B15' : '#22C55E15' }]}>
+                <Ionicons name="wallet-outline" size={20} color={outstanding > 0 ? '#F59E0B' : '#22C55E'} />
+              </View>
+              <Text style={[styles.infoCardLabel, { color: colors.textMuted }]}>Udhaar Due</Text>
+              <Text style={[styles.infoCardValue, { color: outstanding > 0 ? '#F59E0B' : '#22C55E' }]}>
                 {formatCurrency(outstanding)}
               </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </View>
-          </Card>
-        </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
 
-        <TouchableOpacity onPress={() => router.push('/shift')}>
-          <Card style={[styles.udhaarCard, { marginTop: 12 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-              <View style={[styles.udhaarIcon, { backgroundColor: colors.primary + '22' }]}>
-                <Ionicons name="time-outline" size={22} color={colors.primary} />
+          {/* ── Low Stock Alert ──────────────────────────────────────────── */}
+          {lowStock.length > 0 && (
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/inventory', params: { filter: 'low' } })}
+              style={[styles.alertBanner, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
+            >
+              <View style={styles.alertLeft}>
+                <Ionicons name="warning" size={18} color="#D97706" />
+                <View>
+                  <Text style={{ color: '#92400E', fontWeight: '700', fontSize: 14 }}>
+                    {lowStock.length} item{lowStock.length > 1 ? 's' : ''} running low
+                  </Text>
+                  <Text style={{ color: '#B45309', fontSize: 12, marginTop: 1 }}>
+                    {lowStock.slice(0, 2).map(p => p.name).join(', ')}
+                    {lowStock.length > 2 ? ` +${lowStock.length - 2} more` : ''}
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: '700' }} numberOfLines={1}>
-                  Shift & Day Close
-                </Text>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>
-                  Optional · cash drawer & Z-report
-                </Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
-              <View
-                style={[
-                  styles.shiftPill,
-                  { backgroundColor: (shiftOpen ? colors.success : colors.textMuted) + '22' },
-                ]}
-              >
-                <Text
-                  style={{ color: shiftOpen ? colors.success : colors.textMuted, fontWeight: '700', fontSize: 12 }}
-                >
-                  {shiftOpen ? 'Open' : 'Closed'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </View>
-          </Card>
-        </TouchableOpacity>
-
-        {lowStock.length > 0 && (
-          <Card style={{ marginTop: 18, backgroundColor: colors.warning + '18', borderColor: colors.warning }}>
-            <View style={styles.alertHeader}>
-              <Ionicons name="warning-outline" size={18} color={colors.warning} />
-              <Text style={[styles.alertTitle, { color: colors.warning }]}>
-                {lowStock.length} item(s) running low
-              </Text>
-            </View>
-            {lowStock.slice(0, 4).map((p) => (
-              <View key={p.id} style={styles.lowRow}>
-                <Text style={{ color: colors.text }}>{p.name}</Text>
-                <Text style={{ color: colors.danger, fontWeight: '700' }}>
-                  {p.stock} {p.unit}
-                </Text>
-              </View>
-            ))}
-          </Card>
-        )}
-
-        <View style={styles.sectionRow}>
-          <Text style={[styles.section, { color: colors.text, marginTop: 0, marginBottom: 0 }]}>
-            Recent Sales
-          </Text>
-          {recent.length > 0 && (
-            <TouchableOpacity onPress={() => router.push('/sales')}>
-              <Text style={{ color: colors.primary, fontWeight: '700' }}>View all</Text>
+              <Ionicons name="chevron-forward" size={16} color="#D97706" />
             </TouchableOpacity>
           )}
+
+          {/* ── Recent Orders ────────────────────────────────────────────── */}
+          <SectionHeader
+            title="Recent Orders"
+            action={
+              recent.length > 0
+                ? { label: 'View all', onPress: () => router.push('/sales') }
+                : undefined
+            }
+          />
+
+          {recent.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon="🧾"
+                title="No orders yet"
+                subtitle="Your recent orders will appear here"
+              />
+            </Card>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {recent.map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  activeOpacity={0.85}
+                  onPress={() => router.push({ pathname: '/sale/[id]', params: { id: s.id } })}
+                  style={[styles.saleRow, { backgroundColor: colors.card, borderColor: colors.border, ...cardShadow }]}
+                >
+                  <View style={[styles.saleMethodDot, { backgroundColor: payMethodColor(s.paymentMethod) + '20' }]}>
+                    <Ionicons
+                      name={
+                        s.paymentMethod === 'cash' ? 'cash-outline'
+                        : s.paymentMethod === 'upi' ? 'phone-portrait-outline'
+                        : s.paymentMethod === 'card' ? 'card-outline'
+                        : 'time-outline'
+                      }
+                      size={16}
+                      color={payMethodColor(s.paymentMethod)}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>
+                      {formatCurrency(s.finalAmount)}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 1 }}>
+                      {s.itemCount} item{s.itemCount > 1 ? 's' : ''} · {formatDateTime(s.date)}
+                    </Text>
+                  </View>
+                  <Badge
+                    label={s.paymentMethod.toUpperCase()}
+                    bg={payMethodColor(s.paymentMethod) + '18'}
+                    color={payMethodColor(s.paymentMethod)}
+                    size="sm"
+                  />
+                  <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* ── Bottom spacer ────────────────────────────────────────────── */}
+          <View style={{ height: 24 }} />
         </View>
-        {recent.length === 0 ? (
-          <Text style={{ color: colors.textMuted }}>No sales yet. Create your first bill!</Text>
-        ) : (
-          recent.map((s) => (
-            <TouchableOpacity
-              key={s.id}
-              onPress={() => router.push({ pathname: '/sale/[id]', params: { id: s.id } })}
-            >
-              <Card style={styles.saleRow}>
-                <View>
-                  <Text style={{ color: colors.text, fontWeight: '700' }}>
-                    {formatCurrency(s.finalAmount)}
-                  </Text>
-                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                    {s.itemCount} item(s) · {s.paymentMethod.toUpperCase()}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                    {formatDateTime(s.date)}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                </View>
-              </Card>
-            </TouchableOpacity>
-          ))
-        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  greetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
-  greeting: { fontSize: 22, fontWeight: '800' },
-  date: { fontSize: 13, marginTop: 2 },
-  roleBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  statCard: { width: '47%', flexGrow: 1, gap: 6 },
-  statCardInner: { flex: 1, gap: 6 },
-  statChevron: { position: 'absolute', top: 12, right: 12 },
-  statValue: { fontSize: 20, fontWeight: '800' },
-  statLabel: { fontSize: 13 },
-  section: { fontSize: 17, fontWeight: '800', marginTop: 22, marginBottom: 12 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 12 },
-  actions: { flexDirection: 'row', gap: 12 },
-  action: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 12 },
-  actionText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-  udhaarCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
-  udhaarIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  shiftPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  alertHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  alertTitle: { fontWeight: '700' },
-  lowRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  saleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  scroll: { flexGrow: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  storeName: { fontSize: 18, fontWeight: '800', letterSpacing: 0.2 },
+  dateText: { fontSize: 12, marginTop: 2 },
+  shiftChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  shiftDot: { width: 6, height: 6, borderRadius: 3 },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
+  body: { padding: 16, gap: 16 },
+
+  // Hero card
+  heroCard: {
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
+  },
+  heroLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '600' },
+  heroValue: { color: '#FFFFFF', fontSize: 34, fontWeight: '800', marginTop: 4 },
+  heroIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.15)',
+  },
+  heroStat: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  heroStatText: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
+  heroBtn: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+
+  // KPI Grid
+  kpiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  kpiCard: {
+    width: '47.5%',
+    flexGrow: 1,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    gap: 4,
+  },
+  kpiIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  kpiValue: { fontSize: 22, fontWeight: '800' },
+  kpiLabel: { fontSize: 12, fontWeight: '500' },
+
+  // Quick actions
+  quickActionsRow: { gap: 10, paddingVertical: 4 },
+  quickAction: {
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    gap: 8,
+    minWidth: 80,
+  },
+  quickActionIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionLabel: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
+
+  // Info cards (shift + udhaar)
+  infoCard: {
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    gap: 4,
+    alignItems: 'flex-start',
+  },
+  infoCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  infoCardLabel: { fontSize: 12 },
+  infoCardValue: { fontSize: 16, fontWeight: '800' },
+
+  // Alert banner
+  alertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  alertLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+
+  // Sale rows
+  saleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+  },
+  saleMethodDot: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
