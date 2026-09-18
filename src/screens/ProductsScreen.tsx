@@ -51,7 +51,6 @@ const emptyForm: FormState = {
   category: '',
   expiryDate: '',
   maxDiscount: '',
-  // Retail tracks stock by default; a restaurant dish does not.
   trackStock: !isRestaurant,
 };
 
@@ -73,7 +72,6 @@ export default function ProductsScreen() {
     setCategories(cats);
   });
 
-  // Re-query when the search text changes.
   React.useEffect(() => {
     getProducts(search).then(setProducts).catch(console.error);
   }, [search]);
@@ -103,7 +101,6 @@ export default function ProductsScreen() {
   const set = (key: keyof FormState, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  // Auto-mask the expiry date, but let backspace remove an auto-inserted dash.
   const onExpiryChange = (text: string) => {
     if (text.length < form.expiryDate.length) {
       set('expiryDate', text.endsWith('-') ? text.slice(0, -1) : text);
@@ -114,7 +111,6 @@ export default function ProductsScreen() {
 
   const expiryError = validateExpiryDate(form.expiryDate);
 
-  // Existing categories that match what's typed (helps avoid duplicates).
   const categorySuggestions = categories.filter((c) => {
     const typed = form.category.trim().toLowerCase();
     if (c.toLowerCase() === typed) return false;
@@ -169,7 +165,6 @@ export default function ProductsScreen() {
     ]);
   };
 
-  // Restaurant menu is grouped by category (Starters, Main Course, Drinks…).
   const sections = useMemo(() => {
     const map = new Map<string, Product[]>();
     for (const p of products) {
