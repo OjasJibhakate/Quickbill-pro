@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
@@ -10,13 +10,13 @@ import {
   ActivityIndicator,
   TextInput,
   TextInputProps,
-} from 'react-native';
-import { useTheme } from '@/context/ThemeContext';
+} from "react-native";
+import { useTheme } from "@/context/ThemeContext";
 
-export const Card: React.FC<{ children: React.ReactNode; style?: StyleProp<ViewStyle> }> = ({
-  children,
-  style,
-}) => {
+export const Card: React.FC<{
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}> = ({ children, style }) => {
   const { colors } = useTheme();
   return (
     <View
@@ -34,7 +34,7 @@ export const Card: React.FC<{ children: React.ReactNode; style?: StyleProp<ViewS
 interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'success' | 'danger' | 'outline';
+  variant?: "primary" | "success" | "danger" | "outline";
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
@@ -43,21 +43,21 @@ interface ButtonProps {
 export const Button: React.FC<ButtonProps> = ({
   title,
   onPress,
-  variant = 'primary',
+  variant = "primary",
   loading,
   disabled,
   style,
 }) => {
   const { colors } = useTheme();
   const bg =
-    variant === 'success'
+    variant === "success"
       ? colors.success
-      : variant === 'danger'
-      ? colors.danger
-      : variant === 'outline'
-      ? 'transparent'
-      : colors.primary;
-  const fg = variant === 'outline' ? colors.text : '#FFFFFF';
+      : variant === "danger"
+        ? colors.danger
+        : variant === "outline"
+          ? "transparent"
+          : colors.primary;
+  const fg = variant === "outline" ? colors.text : "#FFFFFF";
 
   return (
     <TouchableOpacity
@@ -68,8 +68,8 @@ export const Button: React.FC<ButtonProps> = ({
         styles.button,
         {
           backgroundColor: bg,
-          borderColor: variant === 'outline' ? colors.border : 'transparent',
-          borderWidth: variant === 'outline' ? 1 : 0,
+          borderColor: variant === "outline" ? colors.border : "transparent",
+          borderWidth: variant === "outline" ? 1 : 0,
           opacity: disabled ? 0.5 : 1,
         },
         style,
@@ -84,9 +84,17 @@ export const Button: React.FC<ButtonProps> = ({
   );
 };
 
-export const Field: React.FC<
-  TextInputProps & { label?: string; containerStyle?: ViewStyle }
-> = ({ label, containerStyle, style, ...rest }) => {
+interface FieldProps extends TextInputProps {
+  label?: string;
+  containerStyle?: ViewStyle;
+}
+
+export const Field: React.FC<FieldProps> = ({
+  label,
+  containerStyle,
+  style,
+  ...rest
+}) => {
   const { colors } = useTheme();
   return (
     <View style={[{ marginBottom: 14 }, containerStyle]}>
@@ -97,7 +105,11 @@ export const Field: React.FC<
         placeholderTextColor={colors.textMuted}
         style={[
           styles.input,
-          { backgroundColor: colors.card, color: colors.text, borderColor: colors.border },
+          {
+            backgroundColor: colors.card,
+            color: colors.text,
+            borderColor: colors.border,
+          },
           style as TextStyle,
         ]}
         {...rest}
@@ -106,18 +118,20 @@ export const Field: React.FC<
   );
 };
 
-export const EmptyState: React.FC<{ icon?: string; title: string; subtitle?: string }> = ({
-  icon = '📭',
-  title,
-  subtitle,
-}) => {
+export const EmptyState: React.FC<{
+  icon?: string;
+  title: string;
+  subtitle?: string;
+}> = ({ icon = "📭", title, subtitle }) => {
   const { colors } = useTheme();
   return (
     <View style={styles.empty}>
       <Text style={{ fontSize: 44, marginBottom: 8 }}>{icon}</Text>
       <Text style={[styles.emptyTitle, { color: colors.text }]}>{title}</Text>
       {subtitle ? (
-        <Text style={[styles.emptySub, { color: colors.textMuted }]}>{subtitle}</Text>
+        <Text style={[styles.emptySub, { color: colors.textMuted }]}>
+          {subtitle}
+        </Text>
       ) : null}
     </View>
   );
@@ -133,11 +147,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  buttonText: { fontSize: 16, fontWeight: '700' },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
+  buttonText: { fontSize: 16, fontWeight: "700" },
+  label: { fontSize: 13, fontWeight: "600", marginBottom: 6 },
   input: {
     borderWidth: 1,
     borderRadius: 12,
@@ -145,7 +159,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
   },
-  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  emptyTitle: { fontSize: 17, fontWeight: '700' },
-  emptySub: { fontSize: 14, marginTop: 4, textAlign: 'center', paddingHorizontal: 24 },
+  empty: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyTitle: { fontSize: 17, fontWeight: "700" },
+  emptySub: {
+    fontSize: 14,
+    marginTop: 4,
+    textAlign: "center",
+    paddingHorizontal: 24,
+  },
 });

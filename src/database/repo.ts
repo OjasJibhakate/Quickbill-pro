@@ -1533,3 +1533,33 @@ export const getExpiringBatches = async (days = 30): Promise<ExpiringBatch[]> =>
     [`+${days} days`]
   );
 };
+
+/**
+ * Finds an existing customer by phone number, or creates a new one if not
+ * found. Used when a P2P order is settled on credit so the customer is
+ * automatically registered in the Customers & Udhaar section.
+ */
+export const findOrCreateCustomer = async (
+  name: string,
+  phone: string
+): Promise<string> => {
+  const db = await getDB();
+
+  // Try to find by phone first (most reliable match for P2P customers).
+  if (phone.trim()) {
+    const existing = await db.getFirstAsync<{ id: string }>(
+      'SELECT id FROM customers WHERE phone = ?',
+      [phone.trim()]
+    );
+    if (existing) return existing.id;
+  }
+
+  // Not found — create a new customer with no credit limit (0 = unlimited).
+  const id = newId('cust');
+  await db.runAsync(
+    `INSERT INTO customers (id, name, phone, creditLimit, currentDue, discountPct, updatedAt)
+       VALUES (?, ?, ?, 0, 0, 0, ?)`,
+    [id, name.trim(), phone.trim() || null, nowIso()]
+  );
+  return id;
+};
